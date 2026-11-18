@@ -2,7 +2,8 @@
 // reload. The last turns are sent with every question so follow-ups work.
 
 const KEY = "handbook-chat-history";
-const FLEURON = `<svg class="orn" viewBox="0 0 40 20" aria-hidden="true"><path d="M20 2 L26 10 L20 18 L14 10 Z" fill="currentColor"/><circle cx="8" cy="10" r="2.2" fill="currentColor"/><circle cx="32" cy="10" r="2.2" fill="currentColor"/><circle cx="20" cy="10" r="2" fill="var(--bg)"/></svg>`;
+// Divider between readings: a small rose between two leaves (symbols defined in index.html).
+const FLEURON = `<svg class="orn" viewBox="0 0 64 30" aria-hidden="true"><use href="#leaf" x="0" y="9" width="22" height="12"/><use href="#leaf" x="42" y="9" width="22" height="12" transform="rotate(180 53 15)"/><use href="#rose" x="18" y="0" width="28" height="30"/></svg>`;
 const log = document.getElementById("log");
 const intro = document.getElementById("intro");
 const form = document.getElementById("form");
@@ -64,7 +65,9 @@ function el(tag, className, html) {
 function renderFoot(section, turn) {
   section.querySelector(".turn-foot")?.remove();
   const foot = el("div", "turn-foot");
-  if (turn.card) foot.append(el("span", "drawn", `Card drawn &nbsp;<b>${escape(turn.card)}</b>`));
+  if (turn.unsupported?.length) foot.append(el("p", "unsupported",
+    `Check this: ${turn.unsupported.map(n => `<b>${escape(String(n))}</b>`).join(", ")} does not appear in the handbook passages, so the model may have invented it.`));
+  if (turn.card) foot.append(el("span", "drawn", `Card drawn &nbsp;<b>${escape(String(turn.card))}</b>`));
   renderSources(foot, turn.sources);
   if (foot.childNodes.length) section.append(foot);
 }
@@ -89,6 +92,7 @@ function addTurn(turn) {
   section.append(el("h2", "question", escape(turn.question)));
   const answer = el("div", "answer");
   if (turn.answer) answer.innerHTML = markdown(turn.answer);
+  if (turn.declined) answer.classList.add("declined");
   section.append(answer);
   renderFoot(section, turn);
   log.append(section);
@@ -137,11 +141,15 @@ async function ask(question) {
         const msg = JSON.parse(line);
         if (msg.type === "sources") {
           turn.sources = msg.sources;
+          turn.declined = ["other_subject", "off_topic", "greeting"].includes(msg.scope);
+          answer.classList.toggle("declined", turn.declined);
           answer.innerHTML = '<span class="thinking">Reading the cards</span>';
         } else if (msg.type === "token") {
           turn.answer += msg.text;
           answer.classList.add("streaming");
           answer.innerHTML = markdown(turn.answer);
+        } else if (msg.type === "warning") {
+          turn.unsupported = msg.numbers;
         } else if (msg.type === "error") {
           throw new Error(msg.text);
         }
@@ -316,35 +324,23 @@ fetch("/api/deck").then(r => r.json()).then(data => {
   credit.hidden = false;
 }).catch(() => {});
 
-// ---------- Feathers drifting at the edges ----------
+// ---------- Rose petals drifting down the margins ----------
 
-// A soft plume: a curved shaft with fine barbs on both sides, drawn as strokes.
-const FEATHER = (() => {
-  let barbs = "";
-  for (let i = 0; i < 26; i++) {
-    const t = i / 25;
-    const y = 12 + t * 92;                    // along the shaft
-    const x = 20 + Math.sin(t * 2.6) * 3;     // slight curve
-    const len = 15 * Math.sin(Math.PI * Math.min(1, t * 1.15 + 0.08)) + 2;
-    const lift = 7 + t * 4;
-    barbs += `<path d="M${x.toFixed(1)} ${y.toFixed(1)} q${(-len * 0.6).toFixed(1)} ${(-lift * 0.3).toFixed(1)} ${(-len).toFixed(1)} ${(-lift).toFixed(1)}"/>`;
-    barbs += `<path d="M${x.toFixed(1)} ${y.toFixed(1)} q${(len * 0.6).toFixed(1)} ${(-lift * 0.3).toFixed(1)} ${len.toFixed(1)} ${(-lift).toFixed(1)}"/>`;
-  }
-  return `<svg viewBox="0 0 40 124"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.5" opacity="0.9">${barbs}</g>
-    <path d="M20 6 C23 40 23 80 20 122" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>`;
-})();
-const featherBox = document.getElementById("feathers");
-[[7, 5, -30], [37, 3, 25], [93, 10, 40], [96, 58, -20], [4, 76, 25]].forEach(([left, top, rot], i) => {
-  const f = el("div", "feather", FEATHER);
-  f.style.left = left + "%";
-  f.style.top = top + "%";
-  f.style.setProperty("--r0", rot + "deg");
-  f.style.setProperty("--r1", rot + 25 + "deg");
-  f.style.setProperty("--dx", (i % 2 ? -1 : 1) * (12 + i * 4) + "px");
-  f.style.setProperty("--dy", 20 + i * 6 + "px");
-  f.style.animationDuration = 8 + i * 2 + "s";
-  featherBox.append(f);
-});
+const PETAL = `<svg viewBox="0 0 24 30"><path d="M12 29 C3 23 0 13 3 6 C5 1 10 2 12 6 C14 1 20 1 22 6 C24 14 20 23 12 29 Z" fill="url(#rose-shade)" stroke="var(--rose-deep)" stroke-width="1"/><path d="M12 9 C11 15 11 21 12 27" fill="none" stroke="var(--rose-deep)" stroke-width="0.8" opacity="0.6"/></svg>`;
+const petalBox = document.getElementById("petals");
+// [left %, seconds to fall, delay, size px, opacity]: kept to the margins, away from the text
+[[3, 26, 0, 18, 0.8], [33, 31, 9, 14, 0.55], [96, 24, 4, 20, 0.8], [88, 34, 15, 13, 0.5], [12, 29, 18, 15, 0.6], [62, 38, 24, 12, 0.35]]
+  .forEach(([left, t, delay, size, o], i) => {
+    const p = el("div", "petal", PETAL);
+    p.style.left = left + "%";
+    p.style.width = size + "px";
+    p.style.setProperty("--t", t + "s");
+    p.style.setProperty("--delay", -delay + "s");
+    p.style.setProperty("--o", o);
+    p.style.setProperty("--r0", i * 47 + "deg");
+    p.style.setProperty("--dx", (i % 2 ? -1 : 1) * (30 + i * 9) + "px");
+    petalBox.append(p);
+  });
 
 fetch("/api/info").then(r => r.json()).then(info => {
   meta.textContent = `${info.model} ✦ ${info.embedding} ✦ ${info.top_k} passages ✦ kept on this machine`;
