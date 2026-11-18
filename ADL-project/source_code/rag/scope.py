@@ -47,15 +47,44 @@ OTHER_SUBJECTS = {
 }
 _CS_UPPER = re.compile(r"\bCS\b")   # "CS" only in capitals, so "cs" in other words is ignored
 
-# Words that tie a question to this handbook. A question with one of these is in
+# Courses that exist only in other majors (names taken from the MATH and CS handbooks).
+# A question about one of these does not need to name the major to be out of scope.
+OTHER_COURSES = {
+    "Mathematics": r"\blinear algebra\b|\breal analysis\b|\bdifferential equations?\b|\bdiscrete math(ematics)?\b"
+                   r"|\bprobability\b|\boptimi[sz]ation\b|\bstochastic\b|\boperations? research\b|\bmultivariable\b"
+                   r"|\bquantitative finance\b",
+    "Computer Science": r"\bdata structures?\b|\balgorithms?\b|\boperating systems?\b|\bcomputer networks?\b"
+                        r"|\bdatabase systems?\b|\bcomputer security\b|\bcomputer organi[sz]ation\b"
+                        r"|\bsoftware construction\b|\bhuman.computer interaction\b|\bprogramming language",
+}
+
+# Course codes of other majors: "MATH 201", "CS201", "ECON 105". Two-letter and "HIS" codes
+# must be in capitals, so ordinary words ("is", "his") are not mistaken for them.
+OTHER_CODES = [
+    (re.compile(r"\bMATH\s?-?\d{3}\b", re.IGNORECASE), "Mathematics"),
+    (re.compile(r"\bCS\s?-?\d{3}\b"), "Computer Science"),
+    (re.compile(r"\bECON\s?-?\d{3}\b", re.IGNORECASE), "Economics"),
+    (re.compile(r"\bPSYC?\s?-?\d{3}\b", re.IGNORECASE), "Psychology"),
+    (re.compile(r"\bLIT\s?-?\d{3}\b", re.IGNORECASE), "Literature"),
+    (re.compile(r"\bHIS\s?-?\d{3}\b"), "History"),
+    (re.compile(r"\bSOCI\s?-?\d{3}\b", re.IGNORECASE), "Social Studies"),
+    (re.compile(r"\bIS\s?-?\d{3}\b"), "Integrated Sciences"),
+    (re.compile(r"\bVS\s?-?\d{3}\b"), "Vietnam Studies"),
+    (re.compile(r"\b(?:HCE|ENGR?)\s?-?\d{3}\b", re.IGNORECASE), "Engineering"),
+]
+
+# Words that tie a question to this handbook. A question with a STRONG anchor is in
 # scope even if it also names another subject ("Can AMS students minor in CS?").
-AMS_ANCHOR = re.compile(
+AMS_STRONG = (
     r"\bAMS\b|\barts?\b|\bmedia\b|\bfilms?\b|\bfilmmaking\b|\bcinema\b|\bvisual\b|\bARTS\s?-?\d{3}"
     r"|\bcurat\w*|\bphotograph\w*|\bstudio\b|\bperform\w*|\btheat(er|re)\b|\bdance\b"
-    r"|\bdrawing\b|\bpainting\b|\bsculpture\b|\banimation\b|\bdocumentar\w*|\bhandbook\b"
-    r"|\b(this|the|my|our|your) (major|minor|program|programme|department)\b",
-    re.IGNORECASE,
+    r"|\bdrawing\b|\bpainting\b|\bsculpture\b|\banimation\b|\bdocumentar\w*"
 )
+# Weak anchors ("the major", "the handbook") only count when no other subject is named:
+# "What do I need to declare Computer Science as my major?" is still about CS.
+AMS_WEAK = r"\bhandbook\b|\b(this|the|my|our|your) (major|minor|program|programme|department)\b"
+AMS_ANCHOR = re.compile(AMS_STRONG + "|" + AMS_WEAK, re.IGNORECASE)
+AMS_STRONG_ANCHOR = re.compile(AMS_STRONG, re.IGNORECASE)
 
 GREETING = re.compile(
     r"^\s*(hi|hello|hey|hiya|yo|greetings|good (morning|afternoon|evening)|xin ch[aà]o|ch[aà]o"
@@ -82,9 +111,24 @@ OFF_TOPIC_MARK = "That question is outside my scope"
 
 def other_subjects(text: str) -> list[str]:
     found = [name for name, pattern in OTHER_SUBJECTS.items() if re.search(pattern, text, re.IGNORECASE)]
-    if _CS_UPPER.search(text) and "Computer Science" not in found:
-        found.append("Computer Science")
+
+    def add(name):
+        if name not in found:
+            found.append(name)
+
+    if _CS_UPPER.search(text):
+        add("Computer Science")
+    for pattern, name in OTHER_CODES:
+        if pattern.search(text):
+            add(name)
+    for name, pattern in OTHER_COURSES.items():
+        if re.search(pattern, text, re.IGNORECASE):
+            add(name)
     return found
+
+
+def mentions_ams_strongly(text: str) -> bool:
+    return bool(AMS_STRONG_ANCHOR.search(text))
 
 
 def mentions_ams(text: str) -> bool:
@@ -145,33 +189,104 @@ def resolve(question: str, history: list[dict] | None) -> dict:
     history = history or []
 
     if GREETING.match(q):
-        return {"action": "refuse", "query": q, "message": greeting_message(q), "subjects": [], "follow_up": False}
+        return {"action": "refuse", "query": q, "message": greeting_message(q), "kind": "thanks" if THANKS.search(q) else "greeting", "subjects": [], "follow_up": False, "context": None}
 
     subjects = other_subjects(q)
-    if subjects and not mentions_ams(q):
-        return {"action": "refuse", "query": q, "message": out_of_scope_message(subjects),
-                "subjects": subjects, "follow_up": False}
+    if subjects and not mentions_ams_strongly(q):
+        return {"action": "refuse", "query": q, "message": out_of_scope_message(subjects), "kind": "other_subject",
+                "subjects": subjects, "follow_up": False, "context": None}
 
     follow = bool(history) and is_follow_up(q) and not COURSE_CODE.search(q) and not subjects
 
     if follow:
-        prev = history[-1]
-        # The previous question was about another subject: a follow-up ("and its
-        # prerequisites?") is about that subject too, unless it now names AMS.
-        prev_subjects = other_subjects(prev.get("question", ""))
-        if prev_subjects and not mentions_ams(prev.get("question", "")) and not mentions_ams(q):
-            return {"action": "refuse", "query": q, "message": out_of_scope_message(prev_subjects),
-                    "subjects": prev_subjects, "follow_up": True}
+        topic = _topic_turn(history)
+        topic_q = topic["question"] if topic else ""
+        prev_subjects = other_subjects(topic_q) if topic_q and not mentions_ams_strongly(topic_q) else []
+        # The conversation is on another subject: a follow-up ("and its prerequisites?")
+        # is about that subject too, unless it now names AMS.
+        if prev_subjects and not mentions_ams_strongly(q):
+            return {"action": "refuse", "query": q, "message": out_of_scope_message(prev_subjects), "kind": "other_subject",
+                    "subjects": prev_subjects, "follow_up": True, "context": None}
 
-        base = last_answered(history)
-        if base:
-            # Course codes named in the last answer pin down what "it" refers to.
-            codes = sorted({f"ARTS {c}" for c in COURSE_CODE.findall(base["question"] + " " + base.get("answer", ""))})
-            extra = " ".join(codes[:3])
-            query = f"{base['question']} {q} {extra}".strip()
-            return {"action": "answer", "query": query, "message": None, "subjects": [], "follow_up": True}
+        base_q, codes = None, []
+        if prev_subjects:
+            # "Maths credits?" (refused) -> "What about AMS then?": keep the topic of the
+            # refused question but drop the other subject, so the search is about AMS credits.
+            stripped = strip_subjects(topic_q)
+            if _content_words(stripped) >= 2:
+                base_q = stripped
+        if base_q is None:
+            base = last_answered(history)
+            if not base:
+                return {"action": "answer", "query": q, "message": None, "subjects": [], "follow_up": False, "context": None}
+            base_q = base["question"]
+            # What "it" refers to: the course in the last question, else courses in the last answer.
+            codes = _codes(base_q) or _codes(base.get("answer", ""))[:2]
+        query = " ".join([base_q, q] + codes).strip()
+        return {"action": "answer", "query": query, "message": None, "subjects": [], "follow_up": True,
+                "context": base_q}
 
-    return {"action": "answer", "query": q, "message": None, "subjects": [], "follow_up": False}
+    return {"action": "answer", "query": q, "message": None, "subjects": [], "follow_up": False, "context": None}
+
+
+_STOP = set("""a an and also about are as at be but can could do does for from how i if in is it its
+me my of on or so tell than that the their them then there these they this those to was what when
+where which who why will with would you your""".split())
+
+
+def _content_words(text: str) -> int:
+    return sum(1 for w in re.findall(r"[a-z]+", text.lower()) if w not in _STOP)
+
+
+def _topic_turn(history: list[dict]) -> dict | None:
+    """The turn that set the current topic: the last turn, except that refusals which were
+    only carried over from an earlier question ("and its prerequisites?" after "Maths
+    credits?") are skipped back to the question that actually named the subject."""
+    for turn in reversed(history):
+        q = turn.get("question", "")
+        if other_subjects(q) and not mentions_ams_strongly(q):
+            return turn
+        if OUT_OF_SCOPE_MARK in turn.get("answer", ""):
+            continue
+        return turn
+    return None
+
+
+def _codes(text: str) -> list[str]:
+    seen = []
+    for c in COURSE_CODE.findall(text or ""):
+        code = f"ARTS {c}"
+        if code not in seen:
+            seen.append(code)
+    return seen
+
+
+def strip_subjects(text: str) -> str:
+    for pattern in OTHER_SUBJECTS.values():
+        text = re.sub(pattern, " ", text, flags=re.IGNORECASE)
+    text = _CS_UPPER.sub(" ", text)
+    return re.sub(r"\s+", " ", text).strip()
+
+
+_NUMBER = re.compile(r"(?<![\w.])\d[\d,.]*\d|(?<![\w.])\d(?![\w])")
+_PAGE_REF = re.compile(r"\((?:p\.|pages?)\s?[\d,\s&and.p]+\)", re.IGNORECASE)
+
+
+def ungrounded_numbers(answer: str, sources: list[dict], question: str = "") -> list[str]:
+    """
+    Numbers in the answer that appear in none of the retrieved passages. A small model
+    sometimes invents figures ("a total of 120 credits") even with the right context;
+    those are the most harmful hallucinations in a handbook bot, so they are flagged.
+    Page citations "(p. 9)" are ignored.
+    """
+    context = " ".join(s.get("content", "") for s in sources) + " " + question
+    context_numbers = {n.replace(",", "") for n in _NUMBER.findall(context)}
+    found = []
+    for n in _NUMBER.findall(_PAGE_REF.sub(" ", answer)):
+        key = n.rstrip(".").replace(",", "")
+        if key and key not in context_numbers and n not in found:
+            found.append(n.rstrip("."))
+    return found
 
 
 def history_for_prompt(history: list[dict] | None, turns: int, max_chars: int = 600) -> list[dict]:

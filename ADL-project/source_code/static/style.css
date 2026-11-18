@@ -1,7 +1,8 @@
 /*
-  Tarot theme, after the Eden booth page: black, bone white and one red.
-  Blackletter (UnifrakturMaguntia) for titles, Cormorant SC for small labels,
-  Cormorant Garamond for reading. Lace edges and drifting feathers as ornament.
+  Victorian tarot theme: black, bone white and rose red, with a little leaf green.
+  Pinyon Script (copperplate) for titles, Cormorant SC for small labels,
+  Cormorant Garamond for reading. Rose damask wallpaper, a ruled frame with rose
+  sprays in the corners, roses on the card and a few falling petals as ornament.
   The conversation itself has no boxes or bubbles: only type, a few ornaments and space.
 */
 
@@ -26,7 +27,13 @@
   --ink: #e6e0d6;      /* bone white */
   --muted: #8d8780;
   --red: #b3212b;
-  --lace-opacity: 0.24;
+  --frame: rgba(230, 224, 214, 0.22);
+  --damask-opacity: 0.045;
+  --rose-light: #e0505a;
+  --rose: #b3212b;
+  --rose-deep: #5e0b12;
+  --leaf: #4c5a40;
+  --leaf-deep: #27301f;
   --vignette: rgba(0, 0, 0, 0.65);
   --grain-opacity: 0.09;
   --card-shadow: rgba(0, 0, 0, 0.7);
@@ -37,7 +44,13 @@
   --ink: #1b1817;
   --muted: #7d766d;
   --red: #9e1b24;
-  --lace-opacity: 0.2;
+  --frame: rgba(27, 24, 23, 0.28);
+  --damask-opacity: 0.06;
+  --rose-light: #d4434d;
+  --rose: #a51d27;
+  --rose-deep: #540a10;
+  --leaf: #55633f;
+  --leaf-deep: #2d3622;
   --vignette: rgba(70, 50, 30, 0.2);
   --grain-opacity: 0.12;
   --card-shadow: rgba(40, 30, 20, 0.35);
@@ -56,7 +69,7 @@
   --card-day: #cfc6b8;
   --card-back: #161414;
 
-  --display: "UnifrakturMaguntia", "Lora", Georgia, serif;
+  --display: "Pinyon Script", "Cormorant Garamond", "Lora", Georgia, serif;
   --caps: "Cormorant SC", "Cormorant Garamond", "Lora", Georgia, serif;
   --serif: "Cormorant Garamond", "Lora", Georgia, serif;
   --gallery: 40vw;
@@ -112,32 +125,75 @@ body::after { background: radial-gradient(ellipse at 50% 45%, transparent 50%, v
   margin: 0;
 }
 
-/* ---------- Lace edges and feathers ---------- */
+/* ---------- Victorian ornament: rose damask, ruled frame, corner roses, petals ---------- */
 
-.lace {
+.defs { position: absolute; width: 0; height: 0; overflow: hidden; }
+
+/* Colours of the shared rose drawings (index.html, <symbol id="rose">...) */
+.g-light { stop-color: var(--rose-light); }
+.g-mid { stop-color: var(--rose); }
+.g-deep { stop-color: var(--rose-deep); }
+.r-back { fill: var(--rose-deep); stroke: var(--rose-deep); stroke-width: 1.5; }
+.r-petal { fill: url(#rose-shade); stroke: var(--rose-deep); stroke-width: 1.6; stroke-linejoin: round; }
+.r-cup { fill: var(--rose); stroke: var(--rose-deep); stroke-width: 1.6; }
+.r-rim { fill: none; stroke: var(--rose-light); stroke-width: 1.3; stroke-linecap: round; opacity: 0.7; }
+.r-fold, .r-spiral { fill: none; stroke: var(--rose-deep); stroke-width: 1.6; stroke-linecap: round; }
+.l-leaf { fill: var(--leaf); stroke: var(--leaf-deep); stroke-width: 1; stroke-linejoin: round; }
+.l-vein { fill: none; stroke: var(--leaf-deep); stroke-width: 0.9; stroke-linecap: round; }
+.stem { fill: none; stroke: var(--leaf); stroke-width: 2.2; stroke-linecap: round; }
+.thorn { fill: var(--leaf); }
+
+/* Wallpaper: a faint rose-and-lattice damask tile in the ink colour */
+.damask {
   position: fixed;
-  left: 0; right: 0;
-  height: 26px;
-  z-index: 40;
+  inset: 0;
+  z-index: 0;
   pointer-events: none;
   background: var(--ink);
-  opacity: var(--lace-opacity);
-  -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='36' height='26'><rect width='36' height='5'/><path d='M0 5 Q4.5 15 9 5 Q13.5 15 18 5 Q22.5 15 27 5 Q31.5 15 36 5 Z'/><path d='M0 5 Q9 24 18 5 Q27 24 36 5' fill='none' stroke='black' stroke-width='1'/><circle cx='9' cy='19' r='1.6'/><circle cx='27' cy='19' r='1.6'/><circle cx='18' cy='9' r='1.1'/></svg>") repeat-x;
-          mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='36' height='26'><rect width='36' height='5'/><path d='M0 5 Q4.5 15 9 5 Q13.5 15 18 5 Q22.5 15 27 5 Q31.5 15 36 5 Z'/><path d='M0 5 Q9 24 18 5 Q27 24 36 5' fill='none' stroke='black' stroke-width='1'/><circle cx='9' cy='19' r='1.6'/><circle cx='27' cy='19' r='1.6'/><circle cx='18' cy='9' r='1.1'/></svg>") repeat-x;
+  opacity: var(--damask-opacity);
+  -webkit-mask: url("damask.svg") repeat 0 0 / 132px 176px;
+          mask: url("damask.svg") repeat 0 0 / 132px 176px;
 }
-.lace-top { top: 0; }
-.lace-bottom { bottom: 0; transform: scaleY(-1); }
 
-.feathers { position: fixed; inset: 0; pointer-events: none; z-index: 2; overflow: hidden; }
-.feather {
-  position: absolute;
-  width: 46px;
-  color: var(--ink);
-  opacity: 0.7;
-  filter: blur(0.4px) drop-shadow(0 0 6px rgba(230, 224, 214, 0.25));
-  animation: sway 9s ease-in-out infinite alternate;
+/* Frame: a double rule round the whole page, a rose spray in each corner */
+.vframe {
+  position: fixed;
+  inset: 14px;
+  z-index: 1;
+  pointer-events: none;
+  border: 1px solid var(--frame);
+  outline: 1px solid var(--frame);
+  outline-offset: -6px;
 }
-.feather svg { width: 100%; display: block; }
+.corner-orn {
+  position: absolute;
+  width: 128px;
+  filter: drop-shadow(0 4px 8px var(--card-shadow));
+}
+.corner-orn.tl { left: -8px; top: -8px; }
+.corner-orn.tr { right: -8px; top: -8px; transform: scaleX(-1); }
+.corner-orn.bl { left: -8px; bottom: -8px; transform: scaleY(-1); }
+.corner-orn.br { right: -8px; bottom: -8px; transform: scale(-1, -1); }
+
+/* Rose petals drifting down the margins */
+.petals { position: fixed; inset: 0; pointer-events: none; z-index: 2; overflow: hidden; }
+.petal {
+  position: absolute;
+  top: -40px;
+  width: 18px;
+  opacity: 0;
+  animation: petal-fall var(--t, 22s) linear infinite;
+  animation-delay: var(--delay, 0s);
+}
+.petal svg { width: 100%; display: block; animation: petal-turn 5s ease-in-out infinite alternate; }
+@keyframes petal-fall {
+  0% { transform: translate(0, 0) rotate(var(--r0, 0deg)); opacity: 0; }
+  8% { opacity: var(--o, 0.75); }
+  50% { transform: translate(var(--dx, 40px), 55vh) rotate(calc(var(--r0, 0deg) + 160deg)); }
+  92% { opacity: var(--o, 0.75); }
+  100% { transform: translate(calc(var(--dx, 40px) * -0.5), 110vh) rotate(calc(var(--r0, 0deg) + 320deg)); opacity: 0; }
+}
+@keyframes petal-turn { from { transform: scaleX(1); } to { transform: scaleX(0.35); } }
 
 /* ---------- Gallery (left): one tarot card ---------- */
 
@@ -158,6 +214,7 @@ body::after { background: radial-gradient(ellipse at 50% 45%, transparent 50%, v
 
 /* .art tilts with the mouse, .card turns over */
 .art {
+  position: relative;
   width: min(23vw, 36vh, 320px);
   transform-style: preserve-3d;
   transition: transform 0.25s ease-out;
@@ -169,6 +226,21 @@ body::after { background: radial-gradient(ellipse at 50% 45%, transparent 50%, v
 }
 .card svg, .card img { width: 100%; display: block; }
 .card img { border-radius: 14px; max-height: 60vh; object-fit: contain; }
+/* A ruled Victorian mount around the card, with rose sprays on two corners */
+.art::before {
+  content: "";
+  position: absolute;
+  inset: -12px;
+  border: 1px solid var(--frame);
+  outline: 1px solid var(--frame);
+  outline-offset: -5px;
+  border-radius: 20px;
+  pointer-events: none;
+}
+.card-rose { position: absolute; width: 34%; pointer-events: none; z-index: 2;
+  filter: drop-shadow(0 6px 10px var(--card-shadow)); transform: translateZ(30px); }
+.card-rose.tr { right: -11%; top: -8%; transform: translateZ(30px) scaleX(-1); }
+.card-rose.bl { left: -11%; bottom: -8%; transform: translateZ(30px) scaleY(-1); }
 .card.flip-out { transform: rotateY(90deg) scale(0.97); transition: transform 0.26s ease-in; }
 .card.flip-in { animation: flip-in 0.34s ease-out; }
 .art.shuffling .card { animation: shuffle 1.4s ease-in-out infinite; }
@@ -178,7 +250,7 @@ body::after { background: radial-gradient(ellipse at 50% 45%, transparent 50%, v
 
 figcaption { text-align: center; line-height: 1.1; }
 .art-numeral { display: block; font: 600 15px var(--caps); letter-spacing: 0.3em; color: var(--muted); min-height: 18px; }
-.art-name { display: block; font: 400 38px/1.1 var(--display); color: var(--ink); margin-top: 4px; }
+.art-name { display: block; font: 400 46px/1.15 var(--display); color: var(--ink); margin-top: 4px; }
 
 .deck-controls {
   display: flex;
@@ -231,9 +303,10 @@ figcaption { text-align: center; line-height: 1.1; }
 .hero h1 {
   grid-column: 2;
   grid-row: 1 / span 2;
-  font: 400 clamp(84px, 9vw, 132px)/1 var(--display);
+  font: 400 clamp(84px, 9vw, 132px)/1.15 var(--display);
   color: var(--red);
   margin: 0;
+  padding: 0 0.12em;
   text-shadow: 0 0 40px rgba(179, 33, 43, 0.25);
 }
 .corner { font: 600 17px/1.2 var(--caps); letter-spacing: 0.04em; margin: 0; }
@@ -254,11 +327,11 @@ figcaption { text-align: center; line-height: 1.1; }
 .fleuron { display: flex; align-items: center; gap: 18px; color: var(--muted); margin: 56px auto; max-width: 280px; }
 .fleuron::before, .fleuron::after { content: ""; flex: 1; height: 1px; background: linear-gradient(to right, transparent, var(--muted)); }
 .fleuron::after { background: linear-gradient(to left, transparent, var(--muted)); }
-.fleuron .orn { width: 34px; height: 17px; flex: none; }
+.fleuron .orn { width: 64px; height: 30px; flex: none; }
 
 .turn { animation: rise 0.7s ease both; }
 .question { font: 600 33px/1.25 var(--serif); margin: 0 0 14px; }
-.question::first-letter { font-family: var(--display); font-weight: 400; color: var(--red); font-size: 1.25em; }
+.question::first-letter { font-family: var(--display); font-weight: 400; color: var(--red); font-size: 1.45em; line-height: 1; padding-right: 0.06em; }
 
 .answer p { margin: 0 0 14px; }
 .answer ul, .answer ol { margin: 0 0 14px; padding-left: 24px; }
@@ -267,6 +340,19 @@ figcaption { text-align: center; line-height: 1.1; }
 .answer strong { font-weight: 700; }
 .answer .cite { font-family: var(--caps); font-weight: 600; color: var(--red); letter-spacing: 0.04em; white-space: nowrap; }
 .answer.error { color: var(--red); font-style: italic; }
+.answer.declined { color: var(--muted); font-style: italic; }
+/* A small rose petal marks an answer the bot declined (out of scope) */
+.answer.declined p:first-child::before {
+  content: "";
+  display: inline-block;
+  width: 0.62em;
+  height: 0.78em;
+  margin-right: 0.45em;
+  vertical-align: -0.05em;
+  background: var(--red);
+  -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 30'><path d='M12 29 C3 23 0 13 3 6 C5 1 10 2 12 6 C14 1 20 1 22 6 C24 14 20 23 12 29 Z'/></svg>") no-repeat center / contain;
+          mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 30'><path d='M12 29 C3 23 0 13 3 6 C5 1 10 2 12 6 C14 1 20 1 22 6 C24 14 20 23 12 29 Z'/></svg>") no-repeat center / contain;
+}
 
 .answer.streaming::after {
   content: "✦";
@@ -371,6 +457,13 @@ textarea::placeholder { color: var(--muted); opacity: 0.8; }
   .question { font-size: 27px; }
   textarea { font-size: 22px; }
   .composer { padding: 50px 22px 30px; }
-  .feather { width: 26px; opacity: 0.35; }
-  .feather:nth-child(n + 3) { display: none; }
+  .corner-orn { width: 62px; }
+  .top { padding-top: 48px; }
+  .vframe { inset: 8px; }
+  .petal:nth-child(n + 4) { display: none; }
+  .card-rose { width: 30%; }
 }
+
+/* Grounding check: a figure in the answer that no handbook passage contains */
+.unsupported { flex-basis: 100%; margin: 0; font: italic 16px/1.45 var(--serif); color: var(--red); }
+.unsupported b { font-style: normal; }

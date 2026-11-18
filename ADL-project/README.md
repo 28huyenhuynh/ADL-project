@@ -27,6 +27,22 @@ Improvements over the baseline `run_txt.py`:
 5. **Grounded answers.** The model must answer only from the handbook and say "I could not find this in the handbook." otherwise, instead of falling back to general knowledge.
 6. **Conversation memory** for follow-up questions such as "what are its prerequisites?".
 7. **Text repair** for PDF extraction errors: words split by a stray space (`s tudents`, `c urriculum`, `als o`) are re-joined using the document's own vocabulary, and heading fonts that extract "ti" as `;` or `8` are fixed (`Descrip;on` becomes `Description`).
+8. **Scope guard** (`rag/scope.py`). The vector search always returns the 5 closest chunks, and the handbook is
+   full of "credits" and "requirements", so "How many credits does Maths require?" scored as high as a real AMS
+   question and the model answered with AMS numbers. Now: a question naming another subject (Mathematics,
+   Computer Science, Economics, ...) without mentioning AMS is declined; a question whose best passage is below
+   `SCOPE_THRESHOLD` is declined; between `SCOPE_THRESHOLD` and `SCOPE_CONFIRM` the LLM makes a yes/no call.
+9. **nomic-embed-text task prefixes** (`search_query:` / `search_document:`), which the model was trained with.
+   Unrelated questions now score clearly lower than handbook questions.
+10. **Headings carried into chunks.** A chunk cut below its heading lost its meaning: ARTS 309's prerequisites sit
+    on the next page, so the bot answered with ARTS 308's. Chunks that continue a course or section now start with
+    e.g. `[ARTS 309: Advanced Narrative Film Production, continued]`, and each requirement block starts a new chunk.
+11. **Better conversation memory.** Follow-ups ("how often is it offered?") are rewritten with the previous question
+    and its course code; a follow-up to an out-of-scope question stays out of scope; "What about AMS then?" after a
+    declined Maths question keeps the topic ("credits to graduate") but drops the subject; declined answers are not
+    fed back to the model as conversation.
+12. **Grounding check for numbers.** Any number in an answer that appears in none of the retrieved passages (or the
+    question) is flagged under the answer, because invented figures are the most harmful mistake for a handbook bot.
 
 ## Project structure
 
@@ -149,6 +165,8 @@ Every setting in `rag/config.py` can be set as an environment variable.
 | `CHUNK_SIZE` / `CHUNK_OVERLAP` | `800` / `150` | characters per chunk / shared characters |
 | `TOP_K` | `5` | chunks retrieved per question |
 | `SCORE_THRESHOLD` | `0.35` | minimum cosine similarity for a chunk to be used |
+| `SCOPE_THRESHOLD` | `0.60` | if the best chunk is below this, the question is declined as outside the handbook |
+| `SCOPE_CONFIRM` | `0.68` | between the two thresholds the LLM decides (yes/no) whether the question is about the handbook |
 | `TEMPERATURE` | `0.1` | low for factual answers |
 | `HISTORY_TURNS` | `2` | previous Q/A pairs given to the model |
 | `OLLAMA_URL` | `http://127.0.0.1:11434` | Ollama server |
@@ -166,11 +184,31 @@ contradictory or incomplete, and one question it cannot answer) and writes `eval
 whether the expected page was retrieved, a keyword score, the time taken, and an empty
 **Verdict** column to mark by hand as Correct, Incorrect, Incomplete or Ambiguous.
 
+### Out-of-scope test (does the bot decline other majors?)
+
+```bash
+cd source_code
+python -m eval.run_scope_eval                  # baseline vs. guarded pipeline
+python -m eval.run_scope_eval --skip-baseline  # guarded only, faster
+```
+
+`eval/out_of_scope.json` holds 25 real questions answered by the **Applied Mathematics** and **Computer Science**
+handbooks (provided in the course's sample code), each with its true answer and page. Many are shaped exactly like
+AMS questions ("How many credits does the CS major require?" — 56, while AMS is 48), plus course codes only
+(`CS201`, `MATH 205`), course names only ("Real Analysis"), and conversations that drift from AMS to another major.
+The AMS bot must decline all of them. Controls check that the guard is not too strict: 5 AMS questions that mention
+another subject ("Can I take ARTS 313 if I completed SOCI 102?") and the 20 AMS evaluation questions must be
+answered. The *baseline* mode runs the same index and model without the scope guard and with the original prompt,
+showing what the bot did before the fix. Results: `eval/results/scope_results.md`.
+
 ## The interface
 
-The page is a tarot reading table in three colours (black, bone white and one red), with the
-typography of a gothic event poster: a red blackletter title, small-caps labels around it, lace edges
-and drifting feathers. The reading (the conversation) has no boxes or bubbles.
+The page is a Victorian tarot reading table in black (or vellum), bone white and rose red: a faint rose
+damask wallpaper, a double-ruled frame with rose sprays (rose, bud, thorny stems, leaves) in the corners,
+roses on the card's mount, a few falling petals, and a copperplate script title (Pinyon Script). The hero
+names the three areas of the major from the Fulbright AMS page: art history and curating, film and media
+studies, visual and performing arts. The reading (the conversation) has no boxes or bubbles; declined
+(out-of-scope) answers are set in muted italics with a red petal.
 
 * **Tarot deck** (left side): browse with ‹ and › (or the arrow keys), or press "Draw a card".
   Each question shuffles the deck (the card turns to its back) and draws a card at random when
@@ -180,7 +218,7 @@ and drifting feathers. The reading (the conversation) has no boxes or bubbles.
   13 cards were exported through the Figma MCP server; `python scripts/export_figma_cards.py --token ...`
   exports the rest with the Figma REST API (steps in `static/tarot/README.txt`).
   The app recognises card names, sorts them into deck order and shows numeral and title.
-* **Fonts:** UnifrakturMaguntia (titles), Cormorant SC (labels) and Cormorant Garamond (text),
+* **Fonts:** Pinyon Script (titles), Cormorant SC (labels) and Cormorant Garamond (text),
   all Open Font License, loaded from Google Fonts. Run `python scripts/get_fonts.py` once to save
   them in `static/fonts/` so the page also works offline; Lora (bundled) is the last fallback.
 * **Themes:** Noir and Vellum, switch in the top bar. Choice of theme, current card and the
@@ -212,13 +250,17 @@ Returns a fixed sample answer, so the page can be styled without waiting for a m
   course description list different prerequisites, and the cover has a "MAJOR CODE" label with no code.
   The bot can only be as consistent as its source.
 * Page numbers are the PDF page index (what a PDF viewer shows), one more than the number printed on the page.
-* Small models (0.5b) sometimes ignore the "answer only from the context" instruction or mix up course codes.
+* Small models (0.5b, 1.5b) sometimes ignore the "answer only from the context" instruction, mix up course codes,
+  or combine correct numbers wrongly (e.g. "48 credits, including 40 general and 8 major"). The number check only
+  catches figures that are not in the passages at all. `qwen2.5:3b` is noticeably more reliable.
+* The scope guard's subject list is hand-written (`OTHER_SUBJECTS` in `rag/scope.py`); a subject not in the list
+  falls through to the similarity and LLM checks.
 * One vector store per process; the web app serves one document collection at a time.
 
 ## Acknowledgements
 
 * Tarot cards: Rider-Waite-Smith deck by Pamela Colman Smith (1909, public domain), via "78 Tarot Cards" by [creator name], Figma Community, [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
-* Fonts: UnifrakturMaguntia, Cormorant SC, Cormorant Garamond and Lora, all SIL Open Font License.
+* Fonts: Pinyon Script, Cormorant SC, Cormorant Garamond and Lora, all SIL Open Font License.
 
 Baseline code and handbooks provided by the CS311 course (Fulbright University Vietnam).
 Built with [Ollama](https://ollama.com), [LangChain](https://python.langchain.com), [ChromaDB](https://www.trychroma.com), [pypdf](https://pypdf.readthedocs.io) and [Flask](https://flask.palletsprojects.com).

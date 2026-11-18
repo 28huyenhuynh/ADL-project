@@ -8,14 +8,71 @@
        copies in static/fonts/, which then take priority and work fully offline. -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=UnifrakturMaguntia&family=Cormorant+SC:wght@500;600&family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pinyon+Script&family=Cormorant+SC:wght@500;600&family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&display=swap">
   <link rel="stylesheet" href="{{ url_for('static', filename='fonts/fonts.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-  <div class="lace lace-top" aria-hidden="true"></div>
-  <div class="lace lace-bottom" aria-hidden="true"></div>
-  <div id="feathers" class="feathers" aria-hidden="true"></div>
+  <!-- Victorian ornaments, drawn once and reused with <use>: a cabbage rose, a bud,
+       a serrated leaf, and a spray (rose + bud + leaves) for corners and the card. -->
+  <svg class="defs" width="0" height="0" aria-hidden="true" focusable="false">
+    <defs>
+      <radialGradient id="rose-shade" cx="45%" cy="40%" r="65%">
+        <stop offset="0" class="g-light"/>
+        <stop offset="0.55" class="g-mid"/>
+        <stop offset="1" class="g-deep"/>
+      </radialGradient>
+      <symbol id="rose" viewBox="-50 -50 100 100">
+        <g id="outer-petal-ring">
+          <g id="outer-petal">
+            <path class="r-petal" d="M0 -6 C-15 -10 -27 -26 -18 -40 C-12 -47 -5 -44 0 -47 C5 -44 12 -47 18 -40 C27 -26 15 -10 0 -6 Z"/>
+            <path class="r-rim" d="M-16 -39 C-9 -35 -4 -40 0 -43 C4 -40 9 -35 16 -39"/>
+          </g>
+          <use href="#outer-petal" transform="rotate(72)"/>
+          <use href="#outer-petal" transform="rotate(144)"/>
+          <use href="#outer-petal" transform="rotate(216)"/>
+          <use href="#outer-petal" transform="rotate(288)"/>
+        </g>
+        <path class="r-petal" d="M-28 4 C-33 -15 -16 -30 1 -27 C19 -31 32 -15 29 2 C31 20 14 31 -2 29 C-19 31 -30 19 -28 4 Z"/>
+        <path class="r-fold" d="M-33 10 C-22 23 -4 27 11 23 C24 19 32 8 34 -3"/>
+        <path class="r-fold" d="M-29 -11 C-20 -23 -7 -25 4 -21"/>
+        <path class="r-fold" d="M12 -27 C22 -22 27 -13 27 -4"/>
+        <path class="r-cup" d="M-15 1 C-17 -11 -5 -18 4 -14 C14 -16 18 -5 14 4 C12 13 1 16 -6 12 C-13 10 -15 6 -15 1 Z"/>
+        <path class="r-spiral" d="M2 -2 C6 -2 6 4 1 4 C-4 4 -5 -3 0 -6 C6 -9 11 -2 9 4 C7 10 -2 12 -8 6"/>
+      </symbol>
+      <symbol id="bud" viewBox="-14 -22 28 44">
+        <path class="r-petal" d="M0 -18 C9 -12 10 2 0 8 C-10 2 -9 -12 0 -18 Z"/>
+        <path class="r-fold" d="M0 -16 C4 -8 4 0 0 6"/>
+        <path class="l-leaf" d="M0 8 C-8 4 -12 -4 -10 -10 C-6 -4 -2 2 0 8 Z M0 8 C8 4 12 -4 10 -10 C6 -4 2 2 0 8 Z"/>
+        <path class="stem" d="M0 8 L0 22"/>
+      </symbol>
+      <symbol id="leaf" viewBox="0 -12 46 24">
+        <path class="l-leaf" d="M0 0 C6 -9 16 -12 24 -11 L27 -8 L31 -9 L34 -6 L38 -6 C42 -4 45 -2 46 0 C42 3 38 6 34 6 L31 9 L27 8 L24 11 C16 12 6 9 0 0 Z"/>
+        <path class="l-vein" d="M1 0 L42 0 M12 0 L19 -6 M22 0 L29 -6 M12 0 L19 6 M22 0 L29 6"/>
+      </symbol>
+      <!-- Spray for corners: thorny stems running along two edges from a rose in the corner -->
+      <symbol id="spray" viewBox="0 0 120 120">
+        <path class="stem" d="M38 40 C70 30 92 18 118 14 M40 38 C30 70 18 92 14 118 M48 46 C60 64 58 80 46 92 C38 98 30 94 32 86"/>
+        <path class="thorn" d="M72 29 l3 -7 l3 6 Z M97 18 l3 -6 l3 6 Z M29 72 l-7 3 l6 3 Z M18 97 l-6 3 l6 3 Z M57 74 l7 1 l-4 6 Z"/>
+        <use href="#leaf" x="62" y="12" width="34" height="18" transform="rotate(-14 79 21)"/>
+        <use href="#leaf" x="12" y="62" width="34" height="18" transform="rotate(104 29 71)"/>
+        <use href="#leaf" x="44" y="70" width="26" height="14" transform="rotate(62 57 77)"/>
+        <use href="#bud" x="100" y="2" width="16" height="25" transform="rotate(78 108 14)"/>
+        <use href="#bud" x="4" y="98" width="16" height="25" transform="rotate(-168 12 110)"/>
+        <use href="#rose" x="6" y="6" width="56" height="56"/>
+      </symbol>
+    </defs>
+  </svg>
+
+  <!-- Rose damask wallpaper, a ruled frame with roses in the corners, falling petals -->
+  <div class="damask" aria-hidden="true"></div>
+  <div class="vframe" aria-hidden="true">
+    <svg class="corner-orn tl" viewBox="0 0 120 120"><use href="#spray"/></svg>
+    <svg class="corner-orn tr" viewBox="0 0 120 120"><use href="#spray"/></svg>
+    <svg class="corner-orn bl" viewBox="0 0 120 120"><use href="#spray"/></svg>
+    <svg class="corner-orn br" viewBox="0 0 120 120"><use href="#spray"/></svg>
+  </div>
+  <div id="petals" class="petals" aria-hidden="true"></div>
 
   <header class="top">
     <span class="brand">{{ title }}</span>
@@ -29,7 +86,11 @@
   <!-- Left: the tarot card. Right: the conversation. -->
   <aside class="gallery" aria-label="Tarot card">
     <figure class="art-frame">
-      <div id="art" class="art"><div id="card" class="card"></div></div>
+      <div id="art" class="art">
+        <div id="card" class="card"></div>
+        <svg class="card-rose tr" viewBox="0 0 120 120" aria-hidden="true"><use href="#spray"/></svg>
+        <svg class="card-rose bl" viewBox="0 0 120 120" aria-hidden="true"><use href="#spray"/></svg>
+      </div>
       <figcaption>
         <span id="art-numeral" class="art-numeral"></span>
         <span id="art-name" class="art-name"></span>
@@ -48,13 +109,13 @@
     <main id="log" class="log" aria-live="polite">
       <section id="intro" class="intro">
         <div class="hero">
-          <p class="corner tl">Ask the<br>Handbook</p>
-          <p class="corner tr">Art &amp; Media<br>Studies</p>
+          <p class="corner tl">Art History<br>&amp; Curating</p>
+          <p class="corner tr">Film &amp;<br>Media Studies</p>
           <h1>Arcana</h1>
-          <p class="corner bl">Fulbright<br>University Vietnam</p>
-          <p class="corner br">Read<br>on this machine</p>
+          <p class="corner bl">Visual &amp;<br>Performing Arts</p>
+          <p class="corner br">Fulbright<br>University Vietnam</p>
         </div>
-        <p class="lede">Every answer is drawn only from the B.A. Art &amp; Media Studies Major Handbook, and the page it came from is noted beside it.</p>
+        <p class="lede">Theory and practice, studio and screen. Every answer is drawn only from the B.A. Art &amp; Media Studies Major Handbook, with the page it came from noted beside it. Questions about other majors are kindly declined.</p>
         <p class="label">Begin a reading</p>
         <ul class="suggestions">
           <li><span class="num">I</span><button class="link" type="button">How many credits does the major require?</button></li>

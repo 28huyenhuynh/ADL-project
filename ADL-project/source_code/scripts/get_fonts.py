@@ -5,7 +5,7 @@ Download the page's Google Fonts into static/fonts/ so the interface works offli
   python scripts/get_fonts.py
 
 Fonts (all SIL Open Font License):
-  UnifrakturMaguntia   blackletter titles, like the Eden booth page
+  Pinyon Script        Victorian copperplate titles
   Cormorant SC         small-caps labels
   Cormorant Garamond   reading text (supports Vietnamese)
 """
@@ -14,7 +14,7 @@ import re
 import urllib.request
 from pathlib import Path
 
-CSS_URL = ("https://fonts.googleapis.com/css2?family=UnifrakturMaguntia"
+CSS_URL = ("https://fonts.googleapis.com/css2?family=Pinyon+Script"
            "&family=Cormorant+SC:wght@500;600"
            "&family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&display=swap")
 # A modern browser user agent makes Google serve compact woff2 files.

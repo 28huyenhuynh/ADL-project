@@ -86,12 +86,21 @@ def ask():
             rag = get_pipeline()
             plan = rag.prepare(question, history)
             sources = plan["sources"]
-            yield json.dumps({"type": "sources", "scope": plan["reason"], "sources": [
+            yield json.dumps({"type": "sources", "scope": plan["reason"], "lang": plan.get("lang"),
+                              "question_en": plan.get("question_en"), "sources": [
                 {"source": s["source"], "page": s["page"], "score": s["score"], "text": s["content"][:400]}
                 for s in sources
             ]}) + "\n"
+            answer = ""
             for token in rag.stream(question, plan, history):
+                answer += token
                 yield json.dumps({"type": "token", "text": token}) + "\n"
+            # Numbers the small model wrote that appear in none of the passages (e.g. an
+            # invented "120 credits") are flagged under the answer.
+            from rag.scope import ungrounded_numbers
+            unsupported = ungrounded_numbers(answer, sources, question + " " + (plan.get("question_en") or "")) if sources else []
+            if unsupported:
+                yield json.dumps({"type": "warning", "numbers": unsupported}) + "\n"
             yield json.dumps({"type": "done"}) + "\n"
         except Exception as error:  # e.g. Ollama not running or model not pulled
             yield json.dumps({"type": "error", "text": f"{type(error).__name__}: {error}"}) + "\n"
