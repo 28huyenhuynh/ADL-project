@@ -43,6 +43,17 @@ Improvements over the baseline `run_txt.py`:
     fed back to the model as conversation.
 12. **Grounding check for numbers.** Any number in an answer that appears in none of the retrieved passages (or the
     question) is flagged under the answer, because invented figures are the most harmful mistake for a handbook bot.
+13. **Questions in any language** (`rag/language.py`). `nomic-embed-text` is trained mostly on English: the
+    Vietnamese question "Môn ARTS 309 cần học trước những môn nào?" retrieved pages 20 and 25 instead of 30–31. So a
+    non-English question is translated into English for the scope guard and the search, the model answers in English
+    (it is clearly more accurate in English than when asked to write Vietnamese directly), and the answer is translated
+    back. Vietnamese is detected by its letters; declines, greetings and "not found" are written by hand in Vietnamese.
+    Every translation is checked in code (still English? codes and numbers kept? invented text?) and, if it fails, the
+    correct English answer is shown with a note rather than a wrong translation. Set `TRANSLATE_MODEL=qwen2.5:3b` for
+    better translations; `qwen2.5:1.5b` keeps codes and numbers but often mistranslates course titles.
+14. **Saved conversations** (`chats.py`). Every finished turn is saved as JSON in `chat_history/` (a Docker volume
+    in Compose). "Past readings" in the top bar lists them, reopens one to continue it, deletes it, and exports the
+    open conversation as Markdown or JSON.
 
 ## Project structure
 
@@ -50,14 +61,17 @@ Improvements over the baseline `run_txt.py`:
 ADL-project/
 ├── source_code/
 │   ├── app.py              # Task 4: Flask web server
+│   ├── chats.py            # saved conversations (chat_history/)
 │   ├── cli.py              # terminal chat (Task 1 and 2 demos)
 │   ├── rag/
 │   │   ├── config.py       # all settings, overridable by environment variables
 │   │   ├── loaders.py      # Task 1: TXT + PDF loading and cleaning
 │   │   ├── pipeline.py     # Task 2: indexing, retrieval, prompt, generation
+│   │   ├── scope.py        # scope guard, follow-up memory, number check
+│   │   ├── language.py     # questions in any language: detect, translate, check
 │   │   └── mock.py         # fake backend for UI work without Ollama
 │   ├── templates/index.html
-│   ├── static/             # style.css, app.js, arts.js (built-in cards), fonts/, tarot/ (card images)
+│   ├── static/             # style.css, app.js, i18n.js (EN/VI text), arts.js, damask.svg, fonts/, tarot/
 │   ├── tarot.py            # reads static/tarot/ and sorts the 78 cards
 │   ├── scripts/            # get_fonts.py, export_figma_cards.py
 │   ├── eval/
@@ -169,6 +183,8 @@ Every setting in `rag/config.py` can be set as an environment variable.
 | `SCOPE_CONFIRM` | `0.68` | between the two thresholds the LLM decides (yes/no) whether the question is about the handbook |
 | `TEMPERATURE` | `0.1` | low for factual answers |
 | `HISTORY_TURNS` | `2` | previous Q/A pairs given to the model |
+| `TRANSLATE_MODEL` | *(LLM_MODEL)* | model that translates answers to non-English questions, e.g. `qwen2.5:3b` |
+| `CHAT_DIR` | `chat_history` | folder of saved conversations |
 | `OLLAMA_URL` | `http://127.0.0.1:11434` | Ollama server |
 
 ## Evaluation (Task 2)
@@ -204,8 +220,8 @@ showing what the bot did before the fix. Results: `eval/results/scope_results.md
 ## The interface
 
 The page is a Victorian tarot reading table in black (or vellum), bone white and rose red: a faint rose
-damask wallpaper, a double-ruled frame with rose sprays (rose, bud, thorny stems, leaves) in the corners,
-roses on the card's mount, a few falling petals, and a copperplate script title (Pinyon Script). The hero
+damask wallpaper, white lace along the top and bottom edges, rose sprays (rose, bud, thorny stems, leaves)
+on the card's mount, a few falling petals, and a copperplate script title (Pinyon Script). The hero
 names the three areas of the major from the Fulbright AMS page: art history and curating, film and media
 studies, visual and performing arts. The reading (the conversation) has no boxes or bubbles; declined
 (out-of-scope) answers are set in muted italics with a red petal.
@@ -223,6 +239,11 @@ studies, visual and performing arts. The reading (the conversation) has no boxes
   them in `static/fonts/` so the page also works offline; Lora (bundled) is the last fallback.
 * **Themes:** Noir and Vellum, switch in the top bar. Choice of theme, current card and the
   conversation are remembered in the browser.
+* **Interface language:** English or Tiếng Việt, switch in the top bar (strings in `static/i18n.js`; the
+  first visit follows the browser language). This only changes the interface: answers always come in the
+  language the question was asked in.
+* **Past readings:** the saved conversations (see feature 14). "New reading" starts a new one and keeps the old.
+  There are no user accounts: everyone who can open the page on this machine sees the same history.
 
 **Card art credit.** The card images are the Rider-Waite-Smith tarot deck, illustrated by
 Pamela Colman Smith (A. E. Waite, Rider & Co., 1909; the original artwork is in the public domain),

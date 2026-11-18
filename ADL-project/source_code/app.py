@@ -12,7 +12,16 @@ words appear while the local model is still generating.
 
 import json
 import os
+import sys
 import threading
+
+# Log lines may contain Vietnamese or other non-English questions; a Windows console using
+# an old code page would otherwise raise UnicodeEncodeError in the middle of a request.
+for stream in (sys.stdout, sys.stderr):
+    try:
+        stream.reconfigure(errors="backslashreplace")
+    except (AttributeError, ValueError):
+        pass
 
 from flask import Flask, Response, jsonify, render_template, request
 
@@ -106,6 +115,45 @@ def ask():
             yield json.dumps({"type": "error", "text": f"{type(error).__name__}: {error}"}) + "\n"
 
     return Response(generate(), mimetype="application/x-ndjson")
+
+
+# ---------- Saved conversations (chats.py) ----------
+
+from chats import ChatStore  # noqa: E402
+
+chat_store = ChatStore(config.CHAT_DIR)
+
+
+@app.get("/api/chats")
+def list_chats():
+    return jsonify(chat_store.list())
+
+
+@app.get("/api/chats/<chat_id>")
+def get_chat(chat_id):
+    try:
+        chat = chat_store.get(chat_id)
+    except ValueError:
+        return jsonify({"error": "bad id"}), 400
+    return (jsonify(chat), 200) if chat else (jsonify({"error": "not found"}), 404)
+
+
+@app.put("/api/chats/<chat_id>")
+def save_chat(chat_id):
+    if (request.content_length or 0) > 2_000_000:
+        return jsonify({"error": "too large"}), 413
+    try:
+        return jsonify(chat_store.save(chat_id, request.get_json(force=True) or {}))
+    except ValueError as error:
+        return jsonify({"error": str(error)}), 400
+
+
+@app.delete("/api/chats/<chat_id>")
+def delete_chat(chat_id):
+    try:
+        return jsonify({"deleted": chat_store.delete(chat_id)})
+    except ValueError:
+        return jsonify({"error": "bad id"}), 400
 
 
 if __name__ == "__main__":

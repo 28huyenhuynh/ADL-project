@@ -37,7 +37,9 @@ services:
         condition: service_healthy
     environment:
       OLLAMA_HOST: ollama:11434
-    entrypoint: ["sh", "-c", "ollama pull ${EMBED_MODEL:-nomic-embed-text} && ollama pull ${LLM_MODEL:-qwen2.5:1.5b}"]
+      TRANSLATE_MODEL: ${TRANSLATE_MODEL:-}
+    # Also pulls TRANSLATE_MODEL when it is set ($$ = a shell variable, not a Compose one).
+    entrypoint: ["sh", "-c", "ollama pull ${EMBED_MODEL:-nomic-embed-text} && ollama pull ${LLM_MODEL:-qwen2.5:1.5b} && if [ -n \"$$TRANSLATE_MODEL\" ]; then ollama pull \"$$TRANSLATE_MODEL\"; fi"]
     restart: "no"
 
   app:
@@ -54,12 +56,15 @@ services:
       LLM_MODEL: ${LLM_MODEL:-qwen2.5:1.5b}
       EMBED_MODEL: ${EMBED_MODEL:-nomic-embed-text}
       TOP_K: ${TOP_K:-5}
+      TRANSLATE_MODEL: ${TRANSLATE_MODEL:-}    # e.g. qwen2.5:3b for better translations
     ports:
       - "8000:8000"
     volumes:
       - ../source_code/data:/app/data:ro     # put new PDFs here, the index rebuilds itself
       - vector_store:/app/vector_store        # the index survives restarts
+      - chat_history:/app/chat_history        # saved conversations (Past readings)
 
 volumes:
   ollama_models:
   vector_store:
+  chat_history:

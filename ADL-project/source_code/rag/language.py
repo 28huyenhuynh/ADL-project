@@ -24,6 +24,9 @@ VIETNAMESE = "Vietnamese"
 
 # Letters only Vietnamese uses (é, à, ê, ô... are shared with French, so they do not count).
 _VI_CHARS = re.compile("[ăđơưạảấầẩẫậắằẳẵặẹẻẽếềểễệỉịĩọỏốồổỗộớờởỡợụủũứừửữựỳỵỷỹ]", re.IGNORECASE)
+# Common Vietnamese words written without the letters above ("Xin chào", "Cho hỏi").
+_VI_WORDS = {"xin", "chào", "cho", "hỏi", "không", "và", "có", "gì", "nào", "thì", "bao", "nhiêu",
+             "môn", "ngành", "học", "tín", "chỉ", "sao", "còn", "của", "anh", "chị", "bạn", "ơi"}
 _SCRIPTS = [  # Japanese before Chinese: Japanese text also uses Chinese characters
     (re.compile(r"[぀-ヿ]"), "Japanese"),
     (re.compile(r"[一-鿿]"), "Chinese"),
@@ -70,7 +73,7 @@ DECLINED_SCOPES = {"other_subject", "off_topic", "greeting"}
 
 def detect(text: str, llm=None) -> str:
     """Language name in English ("English", "Vietnamese", "French", ...)."""
-    if _VI_CHARS.search(text):
+    if _VI_CHARS.search(text) or _VI_WORDS & set(re.findall(r"\w+", text.lower())):
         return VIETNAMESE
     for pattern, name in _SCRIPTS:
         if pattern.search(text):
@@ -86,25 +89,132 @@ def detect(text: str, llm=None) -> str:
     return name.capitalize() or ENGLISH
 
 
+# Lessons from testing with qwen2.5:1.5b: it copies worked examples and example values
+# from the prompt into its output ("What about the minor?" for any "Còn ... thì sao?",
+# "ARTS 309 (p. 7)" added to answers). So the prompts contain no examples, and every
+# translation is checked by code instead of trusting the model.
+
+# Vietnamese greetings and thanks are answered without any translation.
+_VI_GREETING = re.compile(r"^\s*(xin chào|chào( bạn| bot| mình| anh| chị)?|alo|hello|hi)\b[\s!.,?~]*$", re.IGNORECASE)
+_VI_THANKS = re.compile(r"^\s*(cảm ơn|cám ơn|thank)\w*( bạn| nhiều| nha| nhé)*[\s!.,?~]*$", re.IGNORECASE)
+
+# The usual Vietnamese follow-up forms, rewritten by rule so the English keeps the
+# follow-up signal that scope.py relies on:
+#   "Còn ngành AMS thì sao?"           -> "What about <ngành AMS>?"
+#   "Còn điều kiện tiên quyết của nó?" -> "And <điều kiện tiên quyết của nó>?"
+_VI_WHAT_ABOUT = re.compile(r"^\s*còn\s+(.+?)\s+thì\s+(sao|thế nào|như thế nào)\s*\??\s*$", re.IGNORECASE)
+_VI_AND = re.compile(r"^\s*còn\s+(.+?)\s*\??\s*$", re.IGNORECASE)
+
+# Codes and numbers that must survive a translation: "ARTS 309", "CS201", "AMS", "GPA", "3.6".
+_KEY_TOKENS = re.compile(r"\b[A-Z]{2,5}\s?\d{3}\b|\b[A-Z]{2,5}\b|\d+(?:[.,]\d+)?")
+
+
+def fixed_kind(text: str, language: str) -> str | None:
+    """'greeting' / 'thanks' for a Vietnamese greeting, so it needs no translation."""
+    if language != VIETNAMESE:
+        return None
+    if _VI_THANKS.match(text):
+        return "thanks"
+    if _VI_GREETING.match(text):
+        return "greeting"
+    return None
+
+
+def _clean(reply: str, fallback: str) -> str:
+    line = next((l for l in reply.splitlines() if l.strip()), fallback)
+    # Small models often prefix a label ("English: ...") or wrap the text in quotes.
+    line = re.sub(r"^\s*(english( translation)?|translation|question)\s*:\s*", "", line, flags=re.IGNORECASE)
+    return line.strip().strip('"“”').strip() or fallback
+
+
+def _norm(text: str) -> str:
+    return re.sub(r"\s+", "", text).upper()
+
+
+def _missing_tokens(source: str, translation: str) -> list[str]:
+    have = _norm(translation)
+    return [t for t in dict.fromkeys(_KEY_TOKENS.findall(source)) if _norm(t) not in have]
+
+
+def _translate_question(llm, text: str, language: str) -> str:
+    reply = llm.invoke(
+        f"Translate this {language} question into English. Translate it literally and completely. Keep all "
+        f"course codes, abbreviations, names and numbers exactly as written, and keep words that point to "
+        f"something said earlier (it, its, that, this course). Output only the English question.\n\n"
+        f"{language}: {text}\nEnglish:").strip()
+    return _clean(reply, text)
+
+
 def to_english(llm, text: str, language: str) -> str:
     if language == ENGLISH:
         return text
-    reply = llm.invoke(
-        f"Translate the following {language} question into English. Keep course codes (such as ARTS 309), "
-        f"names and numbers exactly as they are. Output only the English question.\n\n"
-        f"{language}: {text}\nEnglish:").strip()
-    line = next((l for l in reply.splitlines() if l.strip()), text)
-    # Small models often prefix a label ("English: ...") or wrap the text in quotes.
-    line = re.sub(r"^\s*(english( translation)?|translation)\s*:\s*", "", line, flags=re.IGNORECASE)
-    return line.strip().strip('"“”').strip() or text
+    if language == VIETNAMESE:
+        m = _VI_WHAT_ABOUT.match(text)
+        if m:
+            return f"What about {_translate_question(llm, m.group(1), language).rstrip('?.')}?"
+        m = _VI_AND.match(text)
+        if m:
+            return f"And {_translate_question(llm, m.group(1), language).rstrip('?.')}?"
+    english = _translate_question(llm, text, language)
+    if _missing_tokens(text, english):             # a code or number got lost: try once more
+        english = _translate_question(llm, text, language)
+    missing = _missing_tokens(text, english)
+    return (english + " " + " ".join(missing)).strip() if missing else english
 
 
-def translate_answer(llm, english: str, language: str):
-    """Streams the English answer translated into the language of the question."""
-    prompt = (f"Translate the following answer into {language}. Keep course codes (such as ARTS 309), numbers, "
-              f"names and page citations such as (p. 7) exactly as they are, and keep the list formatting. "
-              f"Output only the translation.\n\nAnswer:\n{english}\n\n{language}:\n")
-    return llm.stream(prompt)
+def _looks_like(text: str, language: str) -> bool:
+    """Rough check that a translation is really in `language` and not still English."""
+    if language == VIETNAMESE:
+        return bool(_VI_CHARS.search(text))
+    words = re.findall(r"[a-z']+", text.lower())
+    english = sum(w in _EN_WORDS for w in words)
+    return not words or english / len(words) < 0.25
+
+
+def translate_answer(llm, english: str, language: str) -> str:
+    """
+    The English answer in the language of the question. The translation is accepted only
+    if it is really in that language and keeps every number and course code of the
+    English answer (a wrong number is worse than an English answer). One retry; then
+    the English answer is returned unchanged.
+    """
+    if language == VIETNAMESE:
+        prompt = ("Dịch câu trả lời sau sang tiếng Việt tự nhiên, gọi người hỏi là \"bạn\". Giữ nguyên mọi mã "
+                  "môn học, con số, tên riêng, tên môn học bằng tiếng Anh và các trích dẫn trang trong ngoặc. "
+                  "Giữ định dạng danh sách. Không thêm thông tin. Chỉ viết bản dịch.\n\n"
+                  f"Tiếng Anh:\n{english}\n\nTiếng Việt:\n")
+    else:
+        prompt = (f"Translate the following answer into {language}. Keep every course code, number, name, "
+                  f"English course title and page citation in brackets exactly as written, keep the program name "
+                  f"\"Art and Media Studies (AMS)\" in English, keep the list formatting and add nothing. Output "
+                  f"only the translation.\n\nEnglish:\n{english}\n\n{language}:\n")
+    for _ in range(2):
+        text = llm.invoke(prompt).strip()
+        if _acceptable(english, text, language):
+            return text
+    return None
+
+
+def untranslated_note(language: str, llm=None) -> str:
+    if language == VIETNAMESE:
+        return ("(Câu trả lời được giữ bằng tiếng Anh vì bản dịch của mô hình chưa đạt kiểm tra độ chính xác. "
+                "Đặt TRANSLATE_MODEL=qwen2.5:3b để dịch tốt hơn.)")
+    return "(The answer is kept in English because the translation did not pass the accuracy check.)"
+
+
+_CJK = re.compile(r"[぀-ヿ一-鿿가-힯]")
+
+
+def _acceptable(english: str, text: str, language: str) -> bool:
+    """A translation is used only if it passes every check. Seen with qwen2.5:1.5b: answers
+    left in English, Chinese characters inside Vietnamese, and invented text several times
+    longer than the original ("Bạn học môn nào? Môn học: Tiếng Anh ...")."""
+    if not text or not _looks_like(text, language) or _missing_tokens(english, text):
+        return False
+    if language not in ("Chinese", "Japanese", "Korean") and _CJK.search(text):
+        return False
+    ratio = len(text) / max(len(english), 1)
+    return 0.5 <= ratio <= 2.5
 
 
 def not_found(language: str) -> str:
