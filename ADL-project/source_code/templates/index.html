@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="noir">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ title }}</title>
+  <!-- Fonts: Google Fonts when online. Run `python scripts/get_fonts.py` once to keep
+       copies in static/fonts/, which then take priority and work fully offline. -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=UnifrakturMaguntia&family=Cormorant+SC:wght@500;600&family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&display=swap">
+  <link rel="stylesheet" href="{{ url_for('static', filename='fonts/fonts.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <div class="lace lace-top" aria-hidden="true"></div>
+  <div class="lace lace-bottom" aria-hidden="true"></div>
+  <div id="feathers" class="feathers" aria-hidden="true"></div>
+
+  <header class="top">
+    <span class="brand">{{ title }}</span>
+    <span class="top-actions">
+      <button class="link" id="theme" type="button"></button>
+      <span class="dot" aria-hidden="true">✦</span>
+      <button class="link" id="reset" type="button">New reading</button>
+    </span>
+  </header>
+
+  <!-- Left: the tarot card. Right: the conversation. -->
+  <aside class="gallery" aria-label="Tarot card">
+    <figure class="art-frame">
+      <div id="art" class="art"><div id="card" class="card"></div></div>
+      <figcaption>
+        <span id="art-numeral" class="art-numeral"></span>
+        <span id="art-name" class="art-name"></span>
+      </figcaption>
+    </figure>
+    <nav class="deck-controls" aria-label="Browse the deck">
+      <button class="link" id="prev" type="button" aria-label="Previous card">‹</button>
+      <button class="link" id="draw" type="button">Draw a card</button>
+      <button class="link" id="next" type="button" aria-label="Next card">›</button>
+    </nav>
+    <p id="deck-count" class="deck-count"></p>
+    <p id="credit" class="credit" hidden></p>
+  </aside>
+
+  <div class="page">
+    <main id="log" class="log" aria-live="polite">
+      <section id="intro" class="intro">
+        <div class="hero">
+          <p class="corner tl">Ask the<br>Handbook</p>
+          <p class="corner tr">Art &amp; Media<br>Studies</p>
+          <h1>Arcana</h1>
+          <p class="corner bl">Fulbright<br>University Vietnam</p>
+          <p class="corner br">Read<br>on this machine</p>
+        </div>
+        <p class="lede">Every answer is drawn only from the B.A. Art &amp; Media Studies Major Handbook, and the page it came from is noted beside it.</p>
+        <p class="label">Begin a reading</p>
+        <ul class="suggestions">
+          <li><span class="num">I</span><button class="link" type="button">How many credits does the major require?</button></li>
+          <li><span class="num">II</span><button class="link" type="button">What do I need to declare the major?</button></li>
+          <li><span class="num">III</span><button class="link" type="button">What are the eligibility criteria for the Capstone?</button></li>
+          <li><span class="num">IV</span><button class="link" type="button">Which courses have a materials fee?</button></li>
+        </ul>
+      </section>
+    </main>
+
+    <footer class="composer">
+      <form id="form">
+        <textarea id="input" rows="1" placeholder="Ask the cards about the handbook..." autocomplete="off"></textarea>
+        <button id="send" class="link send" type="submit">Draw <span aria-hidden="true">✦</span></button>
+      </form>
+      <p id="meta" class="meta"></p>
+    </footer>
+  </div>
+
+  <script src="{{ url_for('static', filename='arts.js') }}"></script>
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>

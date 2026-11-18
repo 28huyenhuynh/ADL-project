@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+vector_store/
+eval/results/
+.DS_Store
+.venv/

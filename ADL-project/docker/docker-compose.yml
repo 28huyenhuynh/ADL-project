@@ -1,0 +1,65 @@
+# Full local RAG stack: Ollama + model download + chatbot web app.
+#
+#   cd docker
+#   docker compose up --build
+#   open http://localhost:8000
+#
+# Change the model without editing code:
+#   LLM_MODEL=qwen2.5:3b docker compose up
+
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: rag-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_models:/root/.ollama          # models survive container restarts
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    # NVIDIA GPU on Linux: uncomment (needs nvidia-container-toolkit)
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+
+  # Runs once: downloads the embedding model and the LLM, then exits.
+  ollama-init:
+    image: ollama/ollama:latest
+    depends_on:
+      ollama:
+        condition: service_healthy
+    environment:
+      OLLAMA_HOST: ollama:11434
+    entrypoint: ["sh", "-c", "ollama pull ${EMBED_MODEL:-nomic-embed-text} && ollama pull ${LLM_MODEL:-qwen2.5:1.5b}"]
+    restart: "no"
+
+  app:
+    build:
+      context: ../source_code
+      dockerfile: ../docker/Dockerfile
+    image: handbook-rag:latest
+    container_name: rag-app
+    depends_on:
+      ollama-init:
+        condition: service_completed_successfully
+    environment:
+      OLLAMA_URL: http://ollama:11434
+      LLM_MODEL: ${LLM_MODEL:-qwen2.5:1.5b}
+      EMBED_MODEL: ${EMBED_MODEL:-nomic-embed-text}
+      TOP_K: ${TOP_K:-5}
+    ports:
+      - "8000:8000"
+    volumes:
+      - ../source_code/data:/app/data:ro     # put new PDFs here, the index rebuilds itself
+      - vector_store:/app/vector_store        # the index survives restarts
+
+volumes:
+  ollama_models:
+  vector_store:
