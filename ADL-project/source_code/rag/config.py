@@ -43,6 +43,13 @@ SCOPE_CONFIRM = _env("SCOPE_CONFIRM", 0.68, float)
 # How many previous question/answer pairs are given to the model as conversation memory.
 HISTORY_TURNS = _env("HISTORY_TURNS", 2, int)
 
+# Model that translates answers to non-English questions (empty = LLM_MODEL). qwen2.5:1.5b
+# often fails to translate; a larger model such as qwen2.5:3b is much more reliable.
+TRANSLATE_MODEL = _env("TRANSLATE_MODEL", "")
+
+# Saved conversations (one JSON file each), shown under "Past readings" in the web page.
+CHAT_DIR = _env("CHAT_DIR", "chat_history")
+
 # Name shown in the web interface.
 APP_TITLE = _env("APP_TITLE", "Art & Media Studies Handbook")
 # Credit for the tarot card images in static/tarot/ (required by CC BY 4.0).

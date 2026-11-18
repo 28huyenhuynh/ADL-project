@@ -1,8 +1,8 @@
 /*
   Victorian tarot theme: black, bone white and rose red, with a little leaf green.
   Pinyon Script (copperplate) for titles, Cormorant SC for small labels,
-  Cormorant Garamond for reading. Rose damask wallpaper, a ruled frame with rose
-  sprays in the corners, roses on the card and a few falling petals as ornament.
+  Cormorant Garamond for reading. Rose damask wallpaper, white lace edges, roses
+  on the card and a few falling petals as ornament.
   The conversation itself has no boxes or bubbles: only type, a few ornaments and space.
 */
 
@@ -29,6 +29,7 @@
   --red: #b3212b;
   --frame: rgba(230, 224, 214, 0.22);
   --damask-opacity: 0.045;
+  --lace-opacity: 0.24;
   --rose-light: #e0505a;
   --rose: #b3212b;
   --rose-deep: #5e0b12;
@@ -46,6 +47,7 @@
   --red: #9e1b24;
   --frame: rgba(27, 24, 23, 0.28);
   --damask-opacity: 0.06;
+  --lace-opacity: 0.2;
   --rose-light: #d4434d;
   --rose: #a51d27;
   --rose-deep: #540a10;
@@ -155,25 +157,55 @@ body::after { background: radial-gradient(ellipse at 50% 45%, transparent 50%, v
           mask: url("damask.svg") repeat 0 0 / 132px 176px;
 }
 
-/* Frame: a double rule round the whole page, a rose spray in each corner */
-.vframe {
+/* White lace along the top and bottom edges */
+.lace {
   position: fixed;
-  inset: 14px;
-  z-index: 1;
+  left: 0; right: 0;
+  height: 26px;
+  z-index: 40;
   pointer-events: none;
-  border: 1px solid var(--frame);
-  outline: 1px solid var(--frame);
-  outline-offset: -6px;
+  background: var(--ink);
+  opacity: var(--lace-opacity);
+  -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='36' height='26'><rect width='36' height='5'/><path d='M0 5 Q4.5 15 9 5 Q13.5 15 18 5 Q22.5 15 27 5 Q31.5 15 36 5 Z'/><path d='M0 5 Q9 24 18 5 Q27 24 36 5' fill='none' stroke='black' stroke-width='1'/><circle cx='9' cy='19' r='1.6'/><circle cx='27' cy='19' r='1.6'/><circle cx='18' cy='9' r='1.1'/></svg>") repeat-x;
+          mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='36' height='26'><rect width='36' height='5'/><path d='M0 5 Q4.5 15 9 5 Q13.5 15 18 5 Q22.5 15 27 5 Q31.5 15 36 5 Z'/><path d='M0 5 Q9 24 18 5 Q27 24 36 5' fill='none' stroke='black' stroke-width='1'/><circle cx='9' cy='19' r='1.6'/><circle cx='27' cy='19' r='1.6'/><circle cx='18' cy='9' r='1.1'/></svg>") repeat-x;
 }
-.corner-orn {
-  position: absolute;
-  width: 128px;
-  filter: drop-shadow(0 4px 8px var(--card-shadow));
+.lace-top { top: 0; }
+.lace-bottom { bottom: 0; transform: scaleY(-1); }
+
+/* ---------- Past readings drawer ---------- */
+
+.drawer-shade { position: fixed; inset: 0; z-index: 60; background: var(--vignette); }
+.drawer {
+  position: fixed;
+  top: 0; right: 0; bottom: 0;
+  width: min(440px, 100vw);
+  z-index: 61;
+  display: flex;
+  flex-direction: column;
+  padding: 44px 34px 30px;
+  background: var(--bg);
+  border-left: 1px solid var(--frame);
+  box-shadow: -30px 0 60px var(--card-shadow);
+  animation: drawer-in 0.35s ease both;
 }
-.corner-orn.tl { left: -8px; top: -8px; }
-.corner-orn.tr { right: -8px; top: -8px; transform: scaleX(-1); }
-.corner-orn.bl { left: -8px; bottom: -8px; transform: scaleY(-1); }
-.corner-orn.br { right: -8px; bottom: -8px; transform: scale(-1, -1); }
+.drawer[hidden], .drawer-shade[hidden] { display: none; }
+@keyframes drawer-in { from { transform: translateX(40px); opacity: 0; } }
+.drawer-head { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; }
+.drawer-head h2 { margin: 0; font: 400 44px/1.1 var(--display); color: var(--red); }
+.drawer-close { font: 400 34px/1 var(--serif); color: var(--muted); }
+.drawer-note { margin: 6px 0 18px; font: italic 17px/1.4 var(--serif); color: var(--muted); }
+.chat-list { list-style: none; margin: 0; padding: 0; overflow-y: auto; flex: 1; }
+.chat-item { display: flex; align-items: flex-start; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--frame); }
+.chat-item.current .chat-title::before { content: "✦ "; color: var(--red); }
+.chat-open { flex: 1; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.chat-title { font: 600 19px/1.3 var(--serif); overflow-wrap: anywhere; }
+.chat-meta { font: 600 13px var(--caps); letter-spacing: 0.1em; color: var(--muted); }
+.chat-delete { font: 400 24px/1 var(--serif); color: var(--muted); padding: 0 4px; }
+.chat-delete:hover { color: var(--red); }
+.chat-empty { padding: 14px 0; font-style: italic; color: var(--muted); }
+.drawer-foot { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 14px; padding-top: 18px;
+  font: 600 15px var(--caps); letter-spacing: 0.12em; }
+.drawer-foot .label { flex-basis: 100%; }
 
 /* Rose petals drifting down the margins */
 .petals { position: fixed; inset: 0; pointer-events: none; z-index: 2; overflow: hidden; }
@@ -286,7 +318,7 @@ figcaption { text-align: center; line-height: 1.1; }
   z-index: 5;
 }
 .brand { color: var(--ink); }
-.top-actions { color: var(--muted); display: flex; gap: 14px; align-items: baseline; }
+.top-actions { color: var(--muted); display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px 14px; align-items: baseline; }
 .dot { font-size: 9px; color: var(--red); }
 
 .log { max-width: var(--width); padding: 9vh 44px 240px; }
@@ -457,9 +489,6 @@ textarea::placeholder { color: var(--muted); opacity: 0.8; }
   .question { font-size: 27px; }
   textarea { font-size: 22px; }
   .composer { padding: 50px 22px 30px; }
-  .corner-orn { width: 62px; }
-  .top { padding-top: 48px; }
-  .vframe { inset: 8px; }
   .petal:nth-child(n + 4) { display: none; }
   .card-rose { width: 30%; }
 }

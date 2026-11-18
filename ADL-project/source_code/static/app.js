@@ -1,9 +1,13 @@
-// Conversation history lives in the browser (localStorage), so it survives a page
-// reload. The last turns are sent with every question so follow-ups work.
+// The current conversation lives in the browser (localStorage) so a reload keeps it, and
+// every finished turn is also saved on the server (chats.py, folder chat_history/) so it
+// appears under "Past readings" and survives a browser reset. The last turns are sent with
+// every question so follow-ups work.
 
 const KEY = "handbook-chat-history";
+const ID_KEY = "handbook-chat-id";
 // Divider between readings: a small rose between two leaves (symbols defined in index.html).
 const FLEURON = `<svg class="orn" viewBox="0 0 64 30" aria-hidden="true"><use href="#leaf" x="0" y="9" width="22" height="12"/><use href="#leaf" x="42" y="9" width="22" height="12" transform="rotate(180 53 15)"/><use href="#rose" x="18" y="0" width="28" height="30"/></svg>`;
+const DECLINED = ["other_subject", "off_topic", "greeting"];
 const log = document.getElementById("log");
 const intro = document.getElementById("intro");
 const form = document.getElementById("form");
@@ -11,26 +15,74 @@ const input = document.getElementById("input");
 const send = document.getElementById("send");
 const meta = document.getElementById("meta");
 
+function storeGet(key) { try { return localStorage.getItem(key); } catch { return null; } }
+function storeSet(key, value) { try { localStorage.setItem(key, value); } catch { /* private mode */ } }
+
 let history = load();
+let chatId = storeGet(ID_KEY) || newId();
 let busy = false;
 
+function newId() {
+  const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
+  storeSet(ID_KEY, id);
+  return id;
+}
 function load() {
-  try { return JSON.parse(localStorage.getItem(KEY)) || []; } catch { return []; }
+  try { return JSON.parse(storeGet(KEY)) || []; } catch { return []; }
 }
 function save() {
-  try { localStorage.setItem(KEY, JSON.stringify(history)); } catch { /* private mode */ }
+  storeSet(KEY, JSON.stringify(history));
+  storeSet(ID_KEY, chatId);
+  if (!history.length) return;
+  fetch(`/api/chats/${chatId}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ turns: history }),
+  }).catch(() => { /* server offline: the browser copy is kept */ });
 }
+
+// ---------- Interface language (English / Tiếng Việt) ----------
+
+let uiLang = storeGet("handbook-lang") || ((navigator.language || "").toLowerCase().startsWith("vi") ? "vi" : "en");
+if (!window.I18N[uiLang]) uiLang = "en";
+
+function t(key, ...args) {
+  const value = (window.I18N[uiLang] || window.I18N.en)[key] ?? window.I18N.en[key];
+  return typeof value === "function" ? value(...args) : value;
+}
+
+const langButton = document.getElementById("lang");
+function applyLanguage() {
+  document.documentElement.lang = uiLang;
+  document.querySelectorAll("[data-i18n]").forEach(n => { n.textContent = t(n.dataset.i18n); });
+  document.querySelectorAll("[data-i18n-html]").forEach(n => { n.innerHTML = t(n.dataset.i18nHtml); });
+  document.querySelectorAll("[data-i18n-placeholder]").forEach(n => { n.placeholder = t(n.dataset.i18nPlaceholder); });
+  document.querySelectorAll("[data-i18n-aria]").forEach(n => { n.setAttribute("aria-label", t(n.dataset.i18nAria)); });
+  // The button names the OTHER language, the one you switch to.
+  const other = uiLang === "vi" ? "en" : "vi";
+  langButton.textContent = window.LANG_NAMES[other];
+  document.title = t("brand");
+  renderAll();
+  if (typeof deckCount !== "undefined" && deck.length) deckCount.textContent = t("of", index + 1, deck.length);
+  renderMeta();
+  renderCredit();
+}
+langButton.addEventListener("click", () => {
+  uiLang = uiLang === "vi" ? "en" : "vi";
+  storeSet("handbook-lang", uiLang);
+  applyLanguage();
+});
 
 // ---------- Tiny, safe markdown: paragraphs, lists, **bold**, `code`, (p. 7) ----------
 
 function escape(text) {
-  return text.replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  return String(text).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
 function inline(text) {
   return escape(text)
     .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
     .replace(/`([^`]+)`/g, "<code>$1</code>")
-    .replace(/\((p\.|pages?)\s?[\d,\s&and.p]+\)/gi, m => `<span class="cite">${m}</span>`);
+    .replace(/\((p\.|pages?|tr\.|trang)\s?[\d,\s&and.p]+\)/gi, m => `<span class="cite">${m}</span>`);
 }
 function markdown(text) {
   const out = [];
@@ -66,8 +118,8 @@ function renderFoot(section, turn) {
   section.querySelector(".turn-foot")?.remove();
   const foot = el("div", "turn-foot");
   if (turn.unsupported?.length) foot.append(el("p", "unsupported",
-    `Check this: ${turn.unsupported.map(n => `<b>${escape(String(n))}</b>`).join(", ")} does not appear in the handbook passages, so the model may have invented it.`));
-  if (turn.card) foot.append(el("span", "drawn", `Card drawn &nbsp;<b>${escape(String(turn.card))}</b>`));
+    t("checkThis", turn.unsupported.map(n => `<b>${escape(n)}</b>`).join(", "))));
+  if (turn.card) foot.append(el("span", "drawn", `${t("cardDrawn")} &nbsp;<b>${escape(turn.card)}</b>`));
   renderSources(foot, turn.sources);
   if (foot.childNodes.length) section.append(foot);
 }
@@ -76,10 +128,10 @@ function renderSources(container, sources) {
   if (!sources || !sources.length) return;
   const pages = [...new Set(sources.map(s => s.page))].sort((a, b) => a - b);
   const details = el("details", "sources");
-  details.append(el("summary", "", `Found on ${pages.length > 1 ? "pages" : "page"} ${pages.join(", ")}`));
+  details.append(el("summary", "", escape(t("foundOn", pages))));
   for (const s of sources) {
     const block = el("div", "excerpt");
-    block.innerHTML = `<b>Page ${s.page}</b> &nbsp;<span>similarity ${s.score.toFixed(2)}</span><p>${escape(s.text)}...</p>`;
+    block.innerHTML = `<b>${escape(t("page", s.page))}</b> &nbsp;<span>${t("similarity")} ${s.score.toFixed(2)}</span><p>${escape(s.text)}...</p>`;
     details.append(block);
   }
   container.append(details);
@@ -112,13 +164,17 @@ async function ask(question) {
   busy = true;
   send.disabled = true;
 
-  const turn = { question: question.trim(), answer: "", sources: [] };
+  const turn = { question: question.trim(), answer: "", sources: [], time: Date.now() };
   const { section, answer } = addTurn(turn);
-  answer.innerHTML = '<span class="thinking">Shuffling the deck</span>';
+  answer.innerHTML = `<span class="thinking">${escape(t("shuffling"))}</span>`;
   shuffle();
   section.scrollIntoView({ behavior: "smooth", block: "start" });
 
-  const recent = history.slice(-4).map(t => ({ question: t.question, answer: t.answer }));
+  // The English version of each question and how it was handled go back to the server,
+  // so follow-ups work in any language (rag/language.py, normalize_history).
+  const recent = history.slice(-4).map(h => ({
+    question: h.question, answer: h.answer, question_en: h.question_en, scope: h.scope,
+  }));
 
   try {
     const response = await fetch("/api/ask", {
@@ -141,9 +197,13 @@ async function ask(question) {
         const msg = JSON.parse(line);
         if (msg.type === "sources") {
           turn.sources = msg.sources;
-          turn.declined = ["other_subject", "off_topic", "greeting"].includes(msg.scope);
+          turn.scope = msg.scope;
+          turn.lang = msg.lang;
+          turn.question_en = msg.question_en;
+          turn.declined = DECLINED.includes(msg.scope);
           answer.classList.toggle("declined", turn.declined);
-          answer.innerHTML = '<span class="thinking">Reading the cards</span>';
+          const waiting = msg.lang && msg.lang !== "English" && !turn.declined ? "translating" : "reading";
+          answer.innerHTML = `<span class="thinking">${escape(t(waiting))}</span>`;
         } else if (msg.type === "token") {
           turn.answer += msg.text;
           answer.classList.add("streaming");
@@ -163,7 +223,7 @@ async function ask(question) {
   } catch (error) {
     answer.classList.remove("streaming");
     answer.classList.add("error");
-    answer.textContent = "Could not get an answer. Is Ollama running? (" + error.message + ")";
+    answer.textContent = t("error", error.message);
   } finally {
     if (showingBack) reveal();
     busy = false;
@@ -196,11 +256,123 @@ document.querySelectorAll(".suggestions .link").forEach(b =>
   b.addEventListener("click", () => ask(b.textContent))
 );
 
-document.getElementById("reset").addEventListener("click", () => {
+// A new reading starts a new saved conversation; the old one stays under "Past readings".
+function startNewReading() {
   history = [];
-  save();
+  chatId = newId();
+  storeSet(KEY, "[]");
   renderAll();
   input.focus();
+}
+document.getElementById("reset").addEventListener("click", () => { if (!busy) startNewReading(); });
+
+// ---------- Past readings (saved conversations) ----------
+
+const drawer = document.getElementById("drawer");
+const shade = document.getElementById("drawer-shade");
+const chatList = document.getElementById("chat-list");
+
+function openDrawer() {
+  drawer.hidden = false;
+  shade.hidden = false;
+  document.getElementById("close-history").focus();
+  loadChatList();
+}
+function closeDrawer() {
+  drawer.hidden = true;
+  shade.hidden = true;
+}
+document.getElementById("open-history").addEventListener("click", openDrawer);
+document.getElementById("close-history").addEventListener("click", closeDrawer);
+shade.addEventListener("click", closeDrawer);
+document.addEventListener("keydown", e => { if (e.key === "Escape" && !drawer.hidden) closeDrawer(); });
+
+function formatDate(ms) {
+  if (!ms) return "";
+  return new Date(ms).toLocaleString(uiLang === "vi" ? "vi-VN" : "en-GB",
+    { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+}
+
+async function loadChatList() {
+  chatList.innerHTML = "";
+  let chats = [];
+  try {
+    chats = await (await fetch("/api/chats")).json();
+  } catch {
+    chatList.append(el("li", "chat-empty", escape(t("historyError"))));
+    return;
+  }
+  if (!chats.length) {
+    chatList.append(el("li", "chat-empty", escape(t("historyEmpty"))));
+    return;
+  }
+  for (const c of chats) {
+    const li = el("li", "chat-item" + (c.id === chatId ? " current" : ""));
+    const open = el("button", "link chat-open");
+    open.type = "button";
+    open.innerHTML = `<span class="chat-title">${escape(c.title || t("untitled"))}</span>`
+      + `<span class="chat-meta">${escape(formatDate(c.updated))} ✦ ${escape(t("turns", c.turns))}`
+      + (c.id === chatId ? ` ✦ ${escape(t("current"))}` : "") + "</span>";
+    open.addEventListener("click", () => openChat(c.id));
+    const del = el("button", "link chat-delete", "×");
+    del.type = "button";
+    del.title = t("deleteChat");
+    del.setAttribute("aria-label", `${t("deleteChat")}: ${c.title || t("untitled")}`);
+    del.addEventListener("click", () => deleteChat(c.id));
+    li.append(open, del);
+    chatList.append(li);
+  }
+}
+
+async function openChat(id) {
+  if (busy) return;
+  try {
+    const chat = await (await fetch(`/api/chats/${id}`)).json();
+    history = chat.turns || [];
+    chatId = id;
+    storeSet(KEY, JSON.stringify(history));
+    storeSet(ID_KEY, chatId);
+    renderAll();
+    closeDrawer();
+    log.lastElementChild?.scrollIntoView({ block: "start" });
+  } catch {
+    chatList.prepend(el("li", "chat-empty", escape(t("historyError"))));
+  }
+}
+
+async function deleteChat(id) {
+  if (!confirm(t("confirmDelete"))) return;
+  await fetch(`/api/chats/${id}`, { method: "DELETE" }).catch(() => {});
+  if (id === chatId) startNewReading();
+  loadChatList();
+}
+
+// Export the open conversation as a file the user keeps (Markdown or JSON).
+function download(name, text, type) {
+  const url = URL.createObjectURL(new Blob([text], { type }));
+  const a = el("a");
+  a.href = url;
+  a.download = name;
+  document.body.append(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+function exportName(ext) {
+  return `reading-${new Date().toISOString().slice(0, 10)}.${ext}`;
+}
+document.getElementById("export-md").addEventListener("click", () => {
+  const lines = [`# ${t("exportTitle")}`, "", formatDate(Date.now()), ""];
+  history.forEach((h, i) => {
+    lines.push(`## ${i + 1}. ${h.question}`, "", h.answer, "");
+    const pages = [...new Set((h.sources || []).map(s => s.page))].sort((a, b) => a - b);
+    if (pages.length) lines.push(`*${t("exportPages")}: ${pages.join(", ")}*`, "");
+  });
+  download(exportName("md"), lines.join("\n"), "text/markdown");
+});
+document.getElementById("export-json").addEventListener("click", () => {
+  download(exportName("json"), JSON.stringify({ id: chatId, exported: new Date().toISOString(), turns: history }, null, 2),
+    "application/json");
 });
 
 // ---------- Theme (Noir / Vellum) ----------
@@ -209,13 +381,11 @@ const themeButton = document.getElementById("theme");
 function setTheme(name) {
   document.documentElement.dataset.theme = name;
   themeButton.textContent = name === "noir" ? "Vellum" : "Noir";
-  try { localStorage.setItem("handbook-theme", name); } catch { }
+  storeSet("handbook-theme", name);
 }
 themeButton.addEventListener("click", () =>
   setTheme(document.documentElement.dataset.theme === "noir" ? "vellum" : "noir"));
-let savedTheme = null;
-try { savedTheme = localStorage.getItem("handbook-theme"); } catch { }
-setTheme(savedTheme === "vellum" ? "vellum" : "noir");
+setTheme(storeGet("handbook-theme") === "vellum" ? "vellum" : "noir");
 
 // ---------- Tarot deck ----------
 // Uses the card images exported into static/tarot/ (see /api/deck) when there are any,
@@ -232,6 +402,7 @@ let backHtml = window.CARD_BACK();
 let index = 0;
 let showingBack = false;
 let flipTimer = null;
+let credit = null;
 
 function faceOf(card) {
   return card.url ? `<img src="${card.url}" alt="${escape(card.name)}" draggable="false">` : card.svg();
@@ -258,15 +429,15 @@ function showCard(i, instant = false) {
   else flipTo(faceOf(card));
   artNumeral.textContent = card.numeral || "";
   artName.textContent = card.name;
-  deckCount.textContent = `${index + 1} of ${deck.length}`;
-  try { localStorage.setItem("handbook-card", card.id); } catch { }
+  deckCount.textContent = t("of", index + 1, deck.length);
+  storeSet("handbook-card", card.id);
 }
 
 function shuffle() {
   if (showingBack) return;
   showingBack = true;
   artNumeral.textContent = "";
-  artName.textContent = "Shuffling";
+  artName.textContent = t("shufflingCard");
   flipTo(backHtml, () => artBox.classList.add("shuffling"));
 }
 
@@ -287,7 +458,7 @@ document.getElementById("draw").addEventListener("click", () => {
   setTimeout(drawRandom, 900);
 });
 document.addEventListener("keydown", e => {
-  if (document.activeElement === input) return;
+  if (document.activeElement === input || !drawer.hidden) return;
   if (e.key === "ArrowLeft") showCard(index - 1);
   if (e.key === "ArrowRight") showCard(index + 1);
 });
@@ -302,26 +473,31 @@ artBox.addEventListener("mousemove", e => {
 artBox.addEventListener("mouseleave", () => { artBox.style.transform = ""; });
 
 function startDeck() {
-  let saved = null;
-  try { saved = localStorage.getItem("handbook-card"); } catch { }
+  const saved = storeGet("handbook-card");
   const found = deck.findIndex(c => c.id === saved);
   showCard(found >= 0 ? found : 0, true);
+}
+
+// CC BY 4.0: title, creator, source, licence, and a note that the images were adapted.
+function renderCredit() {
+  if (!credit) return;
+  const c = credit;
+  const box = document.getElementById("credit");
+  box.innerHTML = `${escape(t("credit"))} ${escape((c.artist || "").split(" (")[0])}, 1909. ${escape(t("via"))} `
+    + `<a href="${escape(c.source)}" target="_blank" rel="noopener">${escape(c.title)}</a>`
+    + (c.author ? ` by ${escape(c.author)}` : "")
+    + `, <a href="${escape(c.license_url)}" target="_blank" rel="noopener">${escape(c.license)}</a>. ${escape(t("resized"))}`;
+  box.hidden = false;
 }
 
 startDeck();
 fetch("/api/deck").then(r => r.json()).then(data => {
   if (!data.cards || !data.cards.length) return;
   deck = data.cards;
-  if (data.back) backHtml = `<img src="${data.back}" alt="Back of a card" draggable="false">`;
+  if (data.back) backHtml = `<img src="${data.back}" alt="" draggable="false">`;
   startDeck();
-  // CC BY 4.0: title, creator, source, licence, and a note that the images were adapted.
-  const c = data.credit || {};
-  const credit = document.getElementById("credit");
-  credit.innerHTML = `Art by ${escape((c.artist || "").split(" (")[0])}, 1909. Via `
-    + `<a href="${escape(c.source)}" target="_blank" rel="noopener">${escape(c.title)}</a>`
-    + (c.author ? ` by ${escape(c.author)}` : "")
-    + `, <a href="${escape(c.license_url)}" target="_blank" rel="noopener">${escape(c.license)}</a>. Resized.`;
-  credit.hidden = false;
+  credit = data.credit || {};
+  renderCredit();
 }).catch(() => {});
 
 // ---------- Rose petals drifting down the margins ----------
@@ -330,11 +506,11 @@ const PETAL = `<svg viewBox="0 0 24 30"><path d="M12 29 C3 23 0 13 3 6 C5 1 10 2
 const petalBox = document.getElementById("petals");
 // [left %, seconds to fall, delay, size px, opacity]: kept to the margins, away from the text
 [[3, 26, 0, 18, 0.8], [33, 31, 9, 14, 0.55], [96, 24, 4, 20, 0.8], [88, 34, 15, 13, 0.5], [12, 29, 18, 15, 0.6], [62, 38, 24, 12, 0.35]]
-  .forEach(([left, t, delay, size, o], i) => {
+  .forEach(([left, tFall, delay, size, o], i) => {
     const p = el("div", "petal", PETAL);
     p.style.left = left + "%";
     p.style.width = size + "px";
-    p.style.setProperty("--t", t + "s");
+    p.style.setProperty("--t", tFall + "s");
     p.style.setProperty("--delay", -delay + "s");
     p.style.setProperty("--o", o);
     p.style.setProperty("--r0", i * 47 + "deg");
@@ -342,9 +518,12 @@ const petalBox = document.getElementById("petals");
     petalBox.append(p);
   });
 
-fetch("/api/info").then(r => r.json()).then(info => {
-  meta.textContent = `${info.model} ✦ ${info.embedding} ✦ ${info.top_k} passages ✦ kept on this machine`;
-}).catch(() => {});
+let info = null;
+function renderMeta() {
+  if (info) meta.textContent = t("meta", info.model, info.embedding, info.top_k);
+}
+fetch("/api/info").then(r => r.json()).then(data => { info = data; renderMeta(); }).catch(() => {});
 
-renderAll();
+applyLanguage();
+if (history.length) save();   // a conversation from before saving existed gets saved too
 input.focus();

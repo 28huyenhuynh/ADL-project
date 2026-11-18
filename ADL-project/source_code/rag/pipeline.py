@@ -148,10 +148,18 @@ class RAGPipeline:
             base_url=config.OLLAMA_URL,
             temperature=config.TEMPERATURE,
         )
+        # Answers to non-English questions are translated by this model (default: the same one).
+        translate_model = config.TRANSLATE_MODEL or self.llm_model
+        self.translator = self.llm if translate_model == self.llm_model else OllamaLLM(
+            model=translate_model, base_url=config.OLLAMA_URL, temperature=0.0)
 
     def _log(self, message: str):
-        if self.verbose:
+        if not self.verbose:
+            return
+        try:
             print(message, flush=True)
+        except UnicodeEncodeError:  # Windows consoles (cp1258...) cannot print every Vietnamese letter
+            print(message.encode("ascii", "backslashreplace").decode("ascii"), flush=True)
 
     # ---------- Indexing ----------
 
@@ -212,6 +220,10 @@ class RAGPipeline:
         # Any language: the question is translated into English for the scope guard and
         # the search, and answered in its own language (language.py).
         lang = language.detect(question, self.llm)
+        kind = language.fixed_kind(question, lang)          # "Xin chào", "Cảm ơn": no translation needed
+        if kind:
+            return {"lang": lang, "question_en": question, "sources": [], "query": question,
+                    "refusal": language.message(kind, lang), "reason": "greeting"}
         question_en = language.to_english(self.llm, question, lang)
         if lang != language.ENGLISH:
             self._log(f"  {lang}: {question!r} -> {question_en!r}")
@@ -323,4 +335,8 @@ class RAGPipeline:
         if english.startswith(NOT_FOUND):
             yield language.not_found(lang)
             return
-        yield from language.translate_answer(self.llm, english, lang)
+        translated = language.translate_answer(self.translator, english, lang)
+        if translated:
+            yield translated
+        else:  # no translation passed the checks: a correct English answer beats a wrong translation
+            yield english + "\n\n" + language.untranslated_note(lang, self.translator)
