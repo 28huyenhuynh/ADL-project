@@ -1,9 +1,0 @@
-__pycache__/
-*.pyc
-.venv/
-.DS_Store
-source_code/vector_store/
-source_code/eval/results/*.json
-demo_video/*.mp4
-demo_video/*.mov
-source_code/chat_history/
