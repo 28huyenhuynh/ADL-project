@@ -67,7 +67,7 @@ APP_TITLE = _env("APP_TITLE", "Art & Media Studies Handbook")
 # Credit for the tarot card images in static/tarot/ (required by CC BY 4.0).
 TAROT_ARTIST = _env("TAROT_ARTIST", "Pamela Colman Smith (Rider-Waite-Smith deck, 1909, public domain)")
 TAROT_TITLE = _env("TAROT_TITLE", "78 Tarot Cards")
-TAROT_AUTHOR = _env("TAROT_AUTHOR", "")   # fill in the creator's name from the Figma Community page
+TAROT_AUTHOR = _env("TAROT_AUTHOR", "Ashley L.")   # creator of the Figma Community file
 TAROT_SOURCE = _env("TAROT_SOURCE", "https://www.figma.com/community/file/1276447799586098149/78-tarot-cards")
 TAROT_LICENSE = _env("TAROT_LICENSE", "CC BY 4.0")
 TAROT_LICENSE_URL = _env("TAROT_LICENSE_URL", "https://creativecommons.org/licenses/by/4.0/")

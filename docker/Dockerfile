@@ -24,7 +24,7 @@ COPY rag ./rag
 COPY eval ./eval
 COPY templates ./templates
 COPY static ./static
-COPY app.py cli.py tarot.py ./
+COPY app.py chats.py cli.py tarot.py ./
 COPY scripts ./scripts
 # Documents are copied as a default, and can be replaced with a volume.
 COPY data ./data

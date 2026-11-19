@@ -4,7 +4,7 @@ Artwork:  the Rider-Waite-Smith tarot deck, illustrated by Pamela Colman Smith
           under the direction of A. E. Waite, first published by Rider & Co., London, 1909.
           The original artwork is in the public domain.
 Digital file: "78 Tarot Cards" on Figma Community
-          by [creator name, as shown on the Figma Community page]
+          by Ashley L.
           https://www.figma.com/community/file/1276447799586098149/78-tarot-cards
 Licence:  Creative Commons Attribution 4.0 International (CC BY 4.0)
           https://creativecommons.org/licenses/by/4.0/
@@ -12,4 +12,4 @@ Changes:  exported from Figma (via the Figma MCP server and scripts/export_figma
           converted to WebP and resized. No other changes were made to the artwork.
 
 The same credit is shown in the web interface under the card and in the project
-README. Set the Figma creator's name in rag/config.py (TAROT_AUTHOR).
+README (TAROT_AUTHOR in rag/config.py).

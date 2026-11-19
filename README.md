@@ -16,7 +16,7 @@ questions with a local LLM served by Ollama. The main knowledge source is the
 | 1. PDF support | PDF and TXT loading, page-level metadata, text cleaning for broken PDF glyphs | `source_code/rag/loaders.py` |
 | 2. Handbook chatbot | RAG pipeline with cosine retrieval, relevance filter, grounded prompt, page citations, follow-up questions; 20-question evaluation script | `source_code/rag/pipeline.py`, `source_code/eval/` |
 | 3. Docker | Dockerfile + Compose stack (Ollama, model download, web app) with volumes | `docker/` |
-| 4. Web UI | Flask app in a tarot style: 78-card deck that shuffles and draws a card per question, Noir and Vellum themes, streamed answers, conversation history, source excerpts | `source_code/app.py`, `templates/`, `static/` |
+| 4. Web UI | Flask app in a tarot style: tarot deck (13 Rider-Waite-Smith cards) that shuffles and draws a card per question, Noir and Vellum themes, streamed answers, conversation history, source excerpts | `source_code/app.py`, `templates/`, `static/` |
 
 Improvements over the baseline `run_txt.py`:
 
@@ -229,9 +229,10 @@ studies, visual and performing arts. The reading (the conversation) has no boxes
 * **Tarot deck** (left side): browse with ‹ and › (or the arrow keys), or press "Draw a card".
   Each question shuffles the deck (the card turns to its back) and draws a card at random when
   the answer is ready; the drawn card is noted under the answer.
-* **The 78 cards:** the Rider-Waite-Smith deck from the Figma file
+* **The cards:** the Rider-Waite-Smith deck from the Figma file
   [78 Tarot Cards](https://www.figma.com/community/file/1276447799586098149/78-tarot-cards).
-  13 cards were exported through the Figma MCP server; `python scripts/export_figma_cards.py --token ...`
+  The app currently uses 13 of the 78 cards, The Fool (0) to The Hanged Man (XII), exported through
+  the Figma MCP server; `python scripts/export_figma_cards.py --token ...`
   exports the rest with the Figma REST API (steps in `static/tarot/README.txt`).
   The app recognises card names, sorts them into deck order and shows numeral and title.
 * **Fonts:** Pinyon Script (titles), Cormorant SC (labels) and Cormorant Garamond (text),
@@ -248,9 +249,9 @@ studies, visual and performing arts. The reading (the conversation) has no boxes
 **Card art credit.** The card images are the Rider-Waite-Smith tarot deck, illustrated by
 Pamela Colman Smith (A. E. Waite, Rider & Co., 1909; the original artwork is in the public domain),
 taken from ["78 Tarot Cards"](https://www.figma.com/community/file/1276447799586098149/78-tarot-cards)
-by [creator name] on Figma Community, licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
+by Ashley L. on Figma Community, licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
 They were exported from Figma, converted to WebP and resized; the artwork itself is unchanged.
-The same credit appears in the interface under the card (set `TAROT_AUTHOR` in `rag/config.py`)
+The same credit appears in the interface under the card (`TAROT_AUTHOR` in `rag/config.py`)
 and in `static/tarot/ATTRIBUTION.txt`.
 
 ## Working on the interface without Ollama
@@ -280,7 +281,7 @@ Returns a fixed sample answer, so the page can be styled without waiting for a m
 
 ## Acknowledgements
 
-* Tarot cards: Rider-Waite-Smith deck by Pamela Colman Smith (1909, public domain), via "78 Tarot Cards" by [creator name], Figma Community, [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
+* Tarot cards: Rider-Waite-Smith deck by Pamela Colman Smith and A. E. Waite (1909, public domain), via "78 Tarot Cards" by Ashley L., Figma Community, [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
 * Fonts: Pinyon Script, Cormorant SC, Cormorant Garamond and Lora, all SIL Open Font License.
 
 Baseline code and handbooks provided by the CS311 course (Fulbright University Vietnam).
